@@ -3,35 +3,100 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Welcome to My Website</title>
+  <title>Peter Orlowski</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 40px auto;
-      padding: 0 20px;
-      background: #f9f9f9;
-      color: #333;
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(to bottom right, #1e3c72, #2a5298);
+      color: #fff;
       text-align: center;
+      overflow-x: hidden;
     }
-    h1 {
-      color: #007acc;
+    header {
+      padding: 60px 20px;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     }
-    p {
-      font-size: 1.2em;
-      line-height: 1.5;
+    header h1 {
+      font-size: 3.5em;
+      margin: 0;
+      font-weight: 700;
+    }
+    header p {
+      font-size: 1.3em;
+      margin-top: 12px;
+      color: #e0e0e0;
+    }
+    section {
+      padding: 50px 25px;
+      background-color: rgba(255, 255, 255, 0.05);
+      margin: 40px auto;
+      max-width: 900px;
+      border-radius: 16px;
+      box-shadow: 0 0 25px rgba(0,0,0,0.3);
+      backdrop-filter: blur(6px);
+    }
+    section h2 {
+      font-size: 2.2em;
+      margin-bottom: 20px;
     }
     footer {
-      margin-top: 40px;
-      font-size: 0.9em;
-      color: #666;
+      padding: 40px 20px;
+      font-size: 0.95em;
+      color: #ccc;
+      background-color: rgba(0,0,0,0.2);
+    }
+    a.button {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 14px 28px;
+      background-color: #00c6ff;
+      background-image: linear-gradient(45deg, #0072ff, #00c6ff);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    a.button:hover {
+      background-image: linear-gradient(45deg, #00c6ff, #0072ff);
+      transform: scale(1.05);
+    }
+    .chess-container {
+      margin-top: 30px;
+    }
+    iframe {
+      border: none;
+      width: 100%;
+      max-width: 640px;
+      height: 480px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.4);
     }
   </style>
 </head>
 <body>
-  <h1>Welcome to My Website</h1>
-  <p>This is a simple site hosted on GitHub Pages with a custom domain.</p>
-  <p>Feel free to customize it and make it your own!</p>
-  <footer>© 2025 Your Name</footer>
+
+  <header>
+    <h1>Welcome to Peter Orlowski's Site</h1>
+    <p>I am the best!!!/p>
+  </header>
+
+  <section id="chess">
+    <h2>Play Chess</h2>
+    <p>Enjoy a game of chess right here on the site:</p>
+    <div class="chess-container">
+      <iframe src="https://www.chess.com/embed/play/online" allowfullscreen></iframe>
+    </div>
+  </section>
+
+  <footer>
+    &copy; 2025 Peter Orlowski. All rights reserved.
+  </footer>
+
 </body>
 </html>
