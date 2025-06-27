@@ -49,33 +49,12 @@
       color: #ccc;
       background-color: rgba(0,0,0,0.2);
     }
-    a.button {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 14px 28px;
-      background-color: #00c6ff;
-      background-image: linear-gradient(45deg, #0072ff, #00c6ff);
-      color: white;
-      text-decoration: none;
-      border-radius: 8px;
-      font-weight: bold;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-    a.button:hover {
-      background-image: linear-gradient(45deg, #00c6ff, #0072ff);
-      transform: scale(1.05);
-    }
-    .chess-container {
-      margin-top: 30px;
-    }
-    iframe {
-      border: none;
-      width: 100%;
-      max-width: 640px;
-      height: 480px;
+    canvas {
       border-radius: 12px;
       box-shadow: 0 0 20px rgba(0,0,0,0.4);
+      background: #000;
+      display: block;
+      margin: 0 auto;
     }
   </style>
 </head>
@@ -83,20 +62,82 @@
 
   <header>
     <h1>Welcome to Peter Orlowski's Site</h1>
-    <p>I am the best!!!/p>
+    <p>I am the best!!!</p>
   </header>
 
-  <section id="chess">
-    <h2>Play Chess</h2>
-    <p>Enjoy a game of chess right here on the site:</p>
-    <div class="chess-container">
-      <iframe src="https://www.chess.com/embed/play/online" allowfullscreen></iframe>
-    </div>
+  <section id="snake">
+    <h2>Play Snake</h2>
+    <canvas id="snakeCanvas" width="400" height="400"></canvas>
   </section>
 
   <footer>
     &copy; 2025 Peter Orlowski. All rights reserved.
   </footer>
 
+  <script>
+    const canvas = document.getElementById("snakeCanvas");
+    const ctx = canvas.getContext("2d");
+    const box = 20;
+    let snake = [{ x: 9 * box, y: 10 * box }];
+    let food = {
+      x: Math.floor(Math.random() * 19 + 1) * box,
+      y: Math.floor(Math.random() * 19 + 1) * box
+    };
+    let direction = null;
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
+      else if (event.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
+      else if (event.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
+      else if (event.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+    });
+
+    function draw() {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < snake.length; i++) {
+        ctx.fillStyle = i === 0 ? "lime" : "white";
+        ctx.fillRect(snake[i].x, snake[i].y, box, box);
+      }
+
+      ctx.fillStyle = "red";
+      ctx.fillRect(food.x, food.y, box, box);
+
+      let headX = snake[0].x;
+      let headY = snake[0].y;
+
+      if (direction === "LEFT") headX -= box;
+      if (direction === "RIGHT") headX += box;
+      if (direction === "UP") headY -= box;
+      if (direction === "DOWN") headY += box;
+
+      if (headX === food.x && headY === food.y) {
+        food = {
+          x: Math.floor(Math.random() * 19 + 1) * box,
+          y: Math.floor(Math.random() * 19 + 1) * box
+        };
+      } else {
+        snake.pop();
+      }
+
+      const newHead = { x: headX, y: headY };
+
+      if (
+        headX < 0 || headX >= canvas.width ||
+        headY < 0 || headY >= canvas.height ||
+        snake.some(segment => segment.x === headX && segment.y === headY)
+      ) {
+        clearInterval(game);
+        alert("Game Over");
+      }
+
+      snake.unshift(newHead);
+    }
+
+    const game = setInterval(draw, 150);
+  </script>
+
 </body>
 </html>
+
