@@ -4,145 +4,227 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Peter Orlowski</title>
-
-  <!-- SEO Meta Tags -->
-  <meta name="description" content="Peter Orlowski's personal website — Creative developer & designer showcasing fun games and projects." />
-  <meta name="keywords" content="Peter Orlowski, developer, designer, snake game, portfolio, creative projects" />
-  <meta name="author" content="Peter Orlowski" />
-
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --primary-color: #ffffff;
+      --accent-color: #00c9ff;
+      --background-gradient: linear-gradient(to bottom right, #0f2027, #203a43, #2c5364);
+    }
+
     body {
       margin: 0;
       font-family: 'Roboto', sans-serif;
-      background: linear-gradient(to bottom right, #1e3c72, #2a5298);
-      color: #fff;
+      background: var(--background-gradient);
+      color: var(--primary-color);
       text-align: center;
       overflow-x: hidden;
     }
+
     header {
       padding: 60px 20px;
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(8px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-    }
-    header h1 {
-      font-size: 3.5em;
-      margin: 0;
-      font-weight: 700;
-    }
-    header p {
-      font-size: 1.3em;
-      margin-top: 12px;
-      color: #e0e0e0;
-    }
-    section {
-      padding: 50px 25px;
-      background-color: rgba(255, 255, 255, 0.05);
-      margin: 40px auto;
-      max-width: 900px;
-      border-radius: 16px;
-      box-shadow: 0 0 25px rgba(0,0,0,0.3);
+      background-color: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(6px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     }
-    section h2 {
-      font-size: 2.2em;
-      margin-bottom: 20px;
+
+    header h1 {
+      font-size: 3.2em;
+      font-weight: 700;
+      margin-bottom: 0.3em;
     }
-    footer {
-      padding: 40px 20px;
-      font-size: 0.95em;
-      color: #ccc;
-      background-color: rgba(0,0,0,0.2);
+
+    header p {
+      font-size: 1.25em;
+      color: #cccccc;
     }
-    canvas {
+
+    section {
+      margin: 50px auto;
+      max-width: 900px;
+      padding: 40px 30px;
+      background-color: rgba(255, 255, 255, 0.03);
       border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.25);
+    }
+
+    section h2, .cool-box h3 {
+      font-size: 2em;
+      margin-bottom: 20px;
+      color: var(--accent-color);
+    }
+
+    canvas {
+      background: #111;
+      border-radius: 10px;
       box-shadow: 0 0 20px rgba(0,0,0,0.4);
-      background: #000;
       display: block;
       margin: 0 auto;
+    }
+
+    .cool-box {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    }
+
+    .clock {
+      font-size: 2em;
+      font-weight: bold;
+      color: var(--accent-color);
+    }
+
+    footer {
+      margin-top: 60px;
+      padding: 30px;
+      font-size: 0.9em;
+      background: rgba(0, 0, 0, 0.3);
+      color: #aaa;
     }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Welcome to Peter Orlowski's Site</h1>
-    <p>andrew smells</p>
+    <h1>Peter Orlowski</h1>
+    <p>Creative Developer & Designer</p>
   </header>
 
-  <section id="snake">
-    <h2>Play Snake</h2>
-    <canvas id="snakeCanvas" width="400" height="400"></canvas>
+  <section id="platformer">
+    <h2>Pixel Animal Platformer</h2>
+    <canvas id="gameCanvas" width="480" height="320"></canvas>
+  </section>
+
+  <section class="cool-box">
+    <h3>Live Clock</h3>
+    <div class="clock" id="clock"></div>
+  </section>
+
+  <section class="cool-box">
+    <h3>Random Fun Fact</h3>
+    <p id="funFact">Loading...</p>
   </section>
 
   <footer>
-    &copy; 2025 Peter Orlowski. All rights reserved.
+    &copy; 2025 Peter Orlowski · All rights reserved · Made with ❤️
   </footer>
 
   <script>
-    const canvas = document.getElementById("snakeCanvas");
+    // Platformer game with pixel animal sprite
+    const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    const box = 20;
-    let snake = [{ x: 9 * box, y: 10 * box }];
-    let food = {
-      x: Math.floor(Math.random() * 19 + 1) * box,
-      y: Math.floor(Math.random() * 19 + 1) * box
-    };
-    let direction = null;
-
-    document.addEventListener("keydown", event => {
-      if (event.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
-      else if (event.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
-      else if (event.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
-      else if (event.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+    const scale = 8;
+    const playerWidth = 5 * scale;
+    const playerHeight = 6 * scale;
+    let player = { x: 50, y: 200, width: playerWidth, height: playerHeight, dx: 0, dy: 0, speed: 3, jumpForce: 12, grounded: false };
+    const gravity = 0.7;
+    const platforms = [
+      { x: 0, y: 300, width: 480, height: 20 },
+      { x: 100, y: 230, width: 100, height: 15 },
+      { x: 250, y: 180, width: 120, height: 15 },
+      { x: 420, y: 240, width: 60, height: 15 },
+    ];
+    const keys = { left: false, right: false, up: false };
+    document.addEventListener("keydown", e => {
+      if (e.code === "ArrowLeft") keys.left = true;
+      if (e.code === "ArrowRight") keys.right = true;
+      if (e.code === "Space" || e.code === "ArrowUp") keys.up = true;
     });
-
-    function draw() {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      for (let i = 0; i < snake.length; i++) {
-        ctx.fillStyle = i === 0 ? "lime" : "white";
-        ctx.fillRect(snake[i].x, snake[i].y, box, box);
+    document.addEventListener("keyup", e => {
+      if (e.code === "ArrowLeft") keys.left = false;
+      if (e.code === "ArrowRight") keys.right = false;
+      if (e.code === "Space" || e.code === "ArrowUp") keys.up = false;
+    });
+    const spritePixels = [
+      [' ', 'B', 'B', 'B', ' '],
+      ['B', 'D', 'L', 'D', 'B'],
+      ['B', 'L', 'W', 'L', 'B'],
+      ['B', 'L', 'P', 'L', 'B'],
+      ['B', 'D', 'L', 'D', 'B'],
+      [' ', 'B', 'B', 'B', ' '],
+    ];
+    const colorMap = {
+      'B': '#3B2F2F', 'D': '#7B4F2F', 'L': '#C9A66B', 'W': '#FFF9F2', 'P': '#F497A2', ' ': null
+    };
+    function drawPlayer(x, y) {
+      for (let row = 0; row < spritePixels.length; row++) {
+        for (let col = 0; col < spritePixels[row].length; col++) {
+          const pixel = spritePixels[row][col];
+          const color = colorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x + col * scale, y + row * scale, scale, scale);
+          }
+        }
       }
-
-      ctx.fillStyle = "red";
-      ctx.fillRect(food.x, food.y, box, box);
-
-      let headX = snake[0].x;
-      let headY = snake[0].y;
-
-      if (direction === "LEFT") headX -= box;
-      if (direction === "RIGHT") headX += box;
-      if (direction === "UP") headY -= box;
-      if (direction === "DOWN") headY += box;
-
-      if (headX === food.x && headY === food.y) {
-        food = {
-          x: Math.floor(Math.random() * 19 + 1) * box,
-          y: Math.floor(Math.random() * 19 + 1) * box
-        };
-      } else {
-        snake.pop();
-      }
-
-      const newHead = { x: headX, y: headY };
-
-      if (
-        headX < 0 || headX >= canvas.width ||
-        headY < 0 || headY >= canvas.height ||
-        snake.some(segment => segment.x === headX && segment.y === headY)
-      ) {
-        clearInterval(game);
-        alert("Game Over");
-      }
-
-      snake.unshift(newHead);
     }
+    function checkCollisions() {
+      player.grounded = false;
+      for (let plat of platforms) {
+        if (
+          player.x < plat.x + plat.width &&
+          player.x + player.width > plat.x &&
+          player.y + player.height < plat.y + 10 &&
+          player.y + player.height + player.dy >= plat.y
+        ) {
+          player.dy = 0;
+          player.y = plat.y - player.height;
+          player.grounded = true;
+        }
+      }
+    }
+    function update() {
+      if (keys.left) player.dx = -player.speed;
+      else if (keys.right) player.dx = player.speed;
+      else player.dx = 0;
+      if (keys.up && player.grounded) {
+        player.dy = -player.jumpForce;
+        player.grounded = false;
+      }
+      player.dy += gravity;
+      player.x += player.dx;
+      player.y += player.dy;
+      if (player.x < 0) player.x = 0;
+      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+      if (player.y + player.height > canvas.height) {
+        player.y = canvas.height - player.height;
+        player.dy = 0;
+        player.grounded = true;
+      }
+      checkCollisions();
+    }
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#654321";
+      for (let plat of platforms) ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+      drawPlayer(player.x, player.y);
+    }
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
 
-    const game = setInterval(draw, 150);
+    // Live clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById("clock").textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Fun fact
+    const facts = [
+      "Bananas are berries, but strawberries aren't!",
+      "Honey never spoils. Archaeologists have found 3000-year-old jars of it!",
+      "Octopuses have three hearts.",
+      "A group of flamingos is called a 'flamboyance'.",
+      "Your nose can remember 50,000 different scents."
+    ];
+    document.getElementById("funFact").textContent = facts[Math.floor(Math.random() * facts.length)];
   </script>
-
 </body>
 </html>
