@@ -4,14 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Peter Orlowski</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --primary-color: #ffffff;
       --accent-color: #00c9ff;
       --background-gradient: linear-gradient(to bottom right, #0f2027, #203a43, #2c5364);
     }
-
     body {
       margin: 0;
       font-family: 'Roboto', sans-serif;
@@ -20,139 +19,85 @@
       text-align: center;
       overflow-x: hidden;
     }
-
-    header {
-      padding: 60px 20px;
-      background-color: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(6px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    header, footer, section {
+      padding: 40px;
     }
-
-    header h1 {
-      font-size: 3.2em;
-      font-weight: 700;
-      margin-bottom: 0.3em;
-    }
-
-    header p {
-      font-size: 1.25em;
-      color: #cccccc;
-    }
-
-    section {
-      margin: 50px auto;
-      max-width: 900px;
-      padding: 40px 30px;
-      background-color: rgba(255, 255, 255, 0.03);
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.25);
-    }
-
-    section h2, .cool-box h3 {
-      font-size: 2em;
-      margin-bottom: 20px;
-      color: var(--accent-color);
-    }
-
     canvas {
-      background: #111;
-      border-radius: 10px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+      background: #0077ff;
       display: block;
       margin: 0 auto;
-    }
-
-    .cool-box {
-      margin-top: 30px;
-      padding: 20px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.06);
-      box-shadow: 0 0 15px rgba(0,0,0,0.3);
-    }
-
-    .clock {
-      font-size: 2em;
-      font-weight: bold;
-      color: var(--accent-color);
-    }
-
-    footer {
-      margin-top: 60px;
-      padding: 30px;
-      font-size: 0.9em;
-      background: rgba(0, 0, 0, 0.3);
-      color: #aaa;
+      border: 2px solid #0044bb;
     }
   </style>
 </head>
 <body>
-
   <header>
     <h1>Peter Orlowski</h1>
     <p>Creative Developer & Designer</p>
   </header>
-
-  <section id="platformer">
-    <h2>Pixel Animal Platformer</h2>
-    <canvas id="gameCanvas" width="480" height="320"></canvas>
-  </section>
-
-  <section class="cool-box">
-    <h3>Live Clock</h3>
-    <div class="clock" id="clock"></div>
-  </section>
-
-  <section class="cool-box">
-    <h3>Random Fun Fact</h3>
-    <p id="funFact">Loading...</p>
-  </section>
-
-  <footer>
-    &copy; 2025 Peter Orlowski · All rights reserved · Made with ❤️
-  </footer>
+  <canvas id="gameCanvas" width="960" height="320"></canvas>
+  <footer>&copy; 2025 Peter Orlowski</footer>
 
   <script>
-    // Platformer game with pixel animal sprite
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    const scale = 8;
-    const playerWidth = 5 * scale;
-    const playerHeight = 6 * scale;
-    let player = { x: 50, y: 200, width: playerWidth, height: playerHeight, dx: 0, dy: 0, speed: 3, jumpForce: 12, grounded: false };
-    const gravity = 0.7;
-    const platforms = [
-      { x: 0, y: 300, width: 480, height: 20 },
-      { x: 100, y: 230, width: 100, height: 15 },
-      { x: 250, y: 180, width: 120, height: 15 },
-      { x: 420, y: 240, width: 60, height: 15 },
+    const scale = 2;
+
+    const finishSprite = [
+      "bbb.......................................",
+      "bgbbbb...................................",
+      "bgbrrrbbb................................",
+      "bgbrrrrrrrbbb............................",
+      "bgbrrrrrrrrrbbb..........................",
+      "bgbrrrrrrrrrrrrbbbb......................",
+      "bgbrrrrrrrrrrrrrrrrbbb...................",
+      "bgbrrrrrrrrrrrrrrrrrrrbbb................",
+      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbwwwrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbwwwwwwrrrrrrrrrrrrrrrrb...............",
+      "bgbwwwwwwwwwrrrrrrrrrrrrrb...............",
+      "bgbwwwwwwwwwwwwrrrrrrrrrrb...............",
+      "bgbwwwwwwwwwwwwwwwwrrrrrrb...............",
+      "bgbwwwwwwwwwwwwwwwwwwwrrrb...............",
+      "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
+      "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
+      "bgbbbbwwwwwwwwwwwwwwwwwwwb...............",
+      "bgb...bbbwwwwwwwwwwwwwwwwb...............",
+      "bgb......bbbwwwwwwwwwwwwwb...............",
+      "bgb..........bbbwwwwwwwwwb...............",
+      "bgb.............bbbwwwwwwb...............",
+      "bgb................bbbwwwb...............",
+      "bgb...................bbbb...............",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................"
     ];
-    const keys = { left: false, right: false, up: false };
-    document.addEventListener("keydown", e => {
-      if (e.code === "ArrowLeft") keys.left = true;
-      if (e.code === "ArrowRight") keys.right = true;
-      if (e.code === "Space" || e.code === "ArrowUp") keys.up = true;
-    });
-    document.addEventListener("keyup", e => {
-      if (e.code === "ArrowLeft") keys.left = false;
-      if (e.code === "ArrowRight") keys.right = false;
-      if (e.code === "Space" || e.code === "ArrowUp") keys.up = false;
-    });
-    const spritePixels = [
-      [' ', 'B', 'B', 'B', ' '],
-      ['B', 'D', 'L', 'D', 'B'],
-      ['B', 'L', 'W', 'L', 'B'],
-      ['B', 'L', 'P', 'L', 'B'],
-      ['B', 'D', 'L', 'D', 'B'],
-      [' ', 'B', 'B', 'B', ' '],
-    ];
-    const colorMap = {
-      'B': '#3B2F2F', 'D': '#7B4F2F', 'L': '#C9A66B', 'W': '#FFF9F2', 'P': '#F497A2', ' ': null
+
+    const finishColorMap = {
+      b: '#000000',
+      g: '#808080',
+      w: '#ff0000',
+      r: '#ffffff',
+      '.': null
     };
-    function drawPlayer(x, y) {
-      for (let row = 0; row < spritePixels.length; row++) {
-        for (let col = 0; col < spritePixels[row].length; col++) {
-          const pixel = spritePixels[row][col];
-          const color = colorMap[pixel];
+
+    function drawFinish(x, y) {
+      for (let row = 0; row < finishSprite.length; row++) {
+        for (let col = 0; col < finishSprite[row].length; col++) {
+          const pixel = finishSprite[row][col];
+          const color = finishColorMap[pixel];
           if (color) {
             ctx.fillStyle = color;
             ctx.fillRect(x + col * scale, y + row * scale, scale, scale);
@@ -160,71 +105,389 @@
         }
       }
     }
-    function checkCollisions() {
-      player.grounded = false;
-      for (let plat of platforms) {
-        if (
-          player.x < plat.x + plat.width &&
-          player.x + player.width > plat.x &&
-          player.y + player.height < plat.y + 10 &&
-          player.y + player.height + player.dy >= plat.y
-        ) {
-          player.dy = 0;
-          player.y = plat.y - player.height;
-          player.grounded = true;
+
+    const boneSprite = [
+      "..bbb...................bbb....",
+      ".bGGGB.................BGGGb....",
+      "bGGWWWb...............bGWWWGb...",
+      "bGWWWWGbbbbbbbbbbbbbbWWWWWWGb...",
+      ".bWWWWWGGGGGGGGGGGGGWWWWWWb....",
+      "..bWWWWWWWWWWWWWWWWWWWWWWb.....",
+      "..bWWWWWWWWWWWWWWWWWWWWWWb....",
+      ".bWWWWWWWWWWWWWWWWWWWWWWWWb...",
+      "bGWWWWWbbbbbbbbbbbbbbWWWWWWb..",
+      "bGGWWWb..............bWWWWWb..",
+      ".bGGGb................bGGGb..",
+      "..bbb..................bbb..."
+    ];
+
+    const boneColorMap = {
+      b: '#000000',
+      G: '#888888',
+      W: '#ffffff',
+      '.': null
+    };
+
+    function drawBone(x, y) {
+      // Smaller bones: half scale size
+      for (let row = 0; row < boneSprite.length; row++) {
+        for (let col = 0; col < boneSprite[row].length; col++) {
+          const pixel = boneSprite[row][col];
+          const color = boneColorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x + col * (scale / 2), y + row * (scale / 2), scale / 2, scale / 2);
+          }
         }
       }
     }
-    function update() {
-      if (keys.left) player.dx = -player.speed;
-      else if (keys.right) player.dx = player.speed;
-      else player.dx = 0;
+
+    const catSprite = [
+      "...........................",
+      "...........................",
+      "...........................",
+      "...........................",
+      "...........................",
+      ".............BB........BB..",
+      ".............BGB......BGB..",
+      ".............BGGB....BGGB..",
+      ".............BGGGBBBBGGGB..",
+      "...BB........BGGGGGGGGGGB..",
+      "..BGGB.......BGGGGGGGGGGB..",
+      ".BGGGB.......BGGGGGGGGGGB..",
+      "BGGBB........BGGBGGGGBGGB..",
+      "BGB..........BGBGBGGBGBGB..",
+      "BGB..........BPPGGGGGGPPB..",
+      "BGB.....BBBBBGBGGGGGGGGB...",
+      "BGB....BGGGGGGGBGGGGGGB....",
+      "BGGB..BGGGBBGGGGBBBBBB.....",
+      ".BGGBBBGGGGGBGGGGGGGB......",
+      "..BGGGBGGGGGBGGGGGGBBB.....",
+      "...BBBBGGGGGGBGGGGGGGGB....",
+      ".......BBBBBBBBBBBBBBB....."
+    ];
+
+    const catColorMap = {
+      B: "#000000",
+      G: "#888888",
+      P: "#FF69B4",
+      ".": null,
+    };
+
+    function drawCat(x, y, flipped) {
+      ctx.save();
+      if (flipped) {
+        ctx.translate(x + catSprite[0].length * scale, y);
+        ctx.scale(-1, 1);
+        x = 0;
+        y = 0;
+      } else {
+        ctx.translate(x, y);
+        x = 0;
+        y = 0;
+      }
+      for (let row = 0; row < catSprite.length; row++) {
+        for (let col = 0; col < catSprite[row].length; col++) {
+          const pixel = catSprite[row][col];
+          const color = catColorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(col * scale, row * scale, scale, scale);
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    const enemySpriteRight = [
+      "...............BBB........BB.",
+      "...............BRRB......BRB..",
+      "...............BWWRBBBBBBRRB.",
+      "...............BBWRBRRRRRBBB..",
+      ".BBB............BWWWBRRWWWB",
+      "BWB.............BRRWBRRBWBBB..",
+      "BWB.............BRRRRRWWWWBBB.",
+      "BWWB.............BRWWWWWWWBWB..",
+      ".BWWBBBBbBBBBBBBBBRBWWWWWWBWB.",
+      "..BBRRRRRRRRRRRRRRWWWBBBBBBB.",
+      "...BRRRRRRRRRRRRWWWWWWWWWWB",     
+      "...BWRRRRRRRRRWWWBBBBBBBBB",
+      "...BWRRRRRRRRWWWB.",
+      "...BWWRRRRRRRWWWB..",
+      "...BWWWRRRRRRWWWB.....",
+      "...BWWWWRRRRWWWBB....",
+      "...BWWBBBBBBWWBWB..",
+      "...BWWBWB..BWWBWB....",
+      "...BWWBWB..BWWBWB..",
+      "...BWWWBWB.BWWWBWB..",
+      "....BBBBBB..BBBBBB."
+    ];
+
+    const enemyColorMap = {
+      B: "#000000",
+      R: "#8B4513",
+      W: "#ffffff",
+      ".": null,
+    };
+
+    function drawEnemy(x, y, flipped) {
+      ctx.save();
+      if (flipped) {
+        ctx.translate(x + enemySpriteRight[0].length * scale, y);
+        ctx.scale(-1, 1);
+        x = 0;
+        y = 0;
+      } else {
+        ctx.translate(x, y);
+        x = 0;
+        y = 0;
+      }
+      for (let row = 0; row < enemySpriteRight.length; row++) {
+        for (let col = 0; col < enemySpriteRight[row].length; col++) {
+          const pixel = enemySpriteRight[row][col];
+          const color = enemyColorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(col * scale, row * scale, scale, scale);
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    // Platforms: ground + 20 floating platforms
+    const platforms = [
+      { x: 0, y: 280, width: 2000, height: 40 }, // ground
+      { x: 150, y: 230, width: 100, height: 15 },
+      { x: 300, y: 180, width: 120, height: 15 },
+      { x: 470, y: 220, width: 90, height: 15 },
+      { x: 600, y: 160, width: 140, height: 15 },
+      { x: 780, y: 210, width: 110, height: 15 },
+      { x: 950, y: 170, width: 130, height: 15 },
+      { x: 1120, y: 200, width: 90, height: 15 },
+      { x: 1280, y: 150, width: 150, height: 15 },
+      { x: 1460, y: 220, width: 80, height: 15 },
+      { x: 1600, y: 180, width: 100, height: 15 },
+      { x: 1720, y: 210, width: 120, height: 15 },
+      { x: 1860, y: 170, width: 90, height: 15 },
+      { x: 1950, y: 230, width: 80, height: 15 },
+      { x: 2080, y: 180, width: 140, height: 15 },
+      { x: 2250, y: 200, width: 110, height: 15 },
+      { x: 2400, y: 160, width: 130, height: 15 },
+      { x: 2550, y: 210, width: 90, height: 15 },
+      { x: 2680, y: 220, width: 120, height: 15 },
+      { x: 2820, y: 180, width: 100, height: 15 },
+      { x: 2950, y: 230, width: 80, height: 15 },
+    ];
+
+    // Bones - one on each platform centered horizontally
+    const bones = platforms.map(plat => ({
+      x: plat.x + plat.width / 2 - (12 * (scale / 2)), // offset so bone center roughly aligned
+      y: plat.y - 25,
+      collected: false
+    }));
+
+    // Enemies on ground only (you can add enemies to platforms later)
+    const enemies = [
+      { x: 500, y: platforms[0].y - enemySpriteRight.length * scale, dx: 1, width: enemySpriteRight[0].length * scale, height: enemySpriteRight.length * scale },
+      { x: 800, y: platforms[0].y - enemySpriteRight.length * scale, dx: -1, width: enemySpriteRight[0].length * scale, height: enemySpriteRight.length * scale }
+    ];
+
+    const player = {
+      x: 50,
+      y: platforms[0].y - catSprite.length * scale,
+      dx: 0,
+      dy: 0,
+      speed: 3,
+      jumpForce: 18,
+      width: catSprite[0].length * scale,
+      height: catSprite.length * scale,
+      grounded: false,
+      direction: "right"
+    };
+
+    const gravity = 0.6;
+
+    const keys = { left: false, right: false, up: false };
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "ArrowLeft") keys.left = true;
+      if (e.code === "ArrowRight") keys.right = true;
+      if (e.code === "Space" || e.code === "ArrowUp") keys.up = true;
+    });
+    document.addEventListener("keyup", (e) => {
+      if (e.code === "ArrowLeft") keys.left = false;
+      if (e.code === "ArrowRight") keys.right = false;
+      if (e.code === "Space" || e.code === "ArrowUp") keys.up = false;
+    });
+
+    let collectedBones = 0;
+    let messageText = "";
+    let messageTimer = 0;
+    let gameOver = false;
+
+    let cameraX = 0;
+
+    function updatePlayer() {
+      if (keys.left) {
+        player.dx = -player.speed;
+        player.direction = "left";
+      } else if (keys.right) {
+        player.dx = player.speed;
+        player.direction = "right";
+      } else {
+        player.dx = 0;
+      }
+
       if (keys.up && player.grounded) {
         player.dy = -player.jumpForce;
         player.grounded = false;
       }
+
       player.dy += gravity;
       player.x += player.dx;
       player.y += player.dy;
-      if (player.x < 0) player.x = 0;
-      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-      if (player.y + player.height > canvas.height) {
-        player.y = canvas.height - player.height;
+
+      // Platform collision (simple)
+      player.grounded = false;
+      for (const plat of platforms) {
+        if (
+          player.x + player.width > plat.x &&
+          player.x < plat.x + plat.width &&
+          player.y + player.height > plat.y &&
+          player.y + player.height < plat.y + plat.height + 15 && // allow small range to land
+          player.dy >= 0
+        ) {
+          player.y = plat.y - player.height;
+          player.dy = 0;
+          player.grounded = true;
+        }
+      }
+
+      // Prevent falling below ground platform
+      if (player.y + player.height > platforms[0].y + platforms[0].height) {
+        player.y = platforms[0].y - player.height;
         player.dy = 0;
         player.grounded = true;
       }
-      checkCollisions();
+
+      // Camera follows player
+      cameraX = player.x + player.width / 2 - canvas.width / 2;
+      if (cameraX < 0) cameraX = 0;
+      if (cameraX > platforms[0].width - canvas.width) cameraX = platforms[0].width - canvas.width;
     }
+
+    function checkCollisions() {
+      for (const bone of bones) {
+        if (
+          !bone.collected &&
+          player.x < bone.x + scale &&
+          player.x + player.width > bone.x &&
+          player.y < bone.y + scale &&
+          player.y + player.height > bone.y
+        ) {
+          bone.collected = true;
+          collectedBones++;
+        }
+      }
+
+      for (const enemy of enemies) {
+        if (
+          player.x < enemy.x + enemy.width &&
+          player.x + player.width > enemy.x &&
+          player.y < enemy.y + enemy.height &&
+          player.y + player.height > enemy.y
+        ) {
+          gameOver = true;
+          messageText = "You hit an enemy! Restarting...";
+          messageTimer = 180;
+          setTimeout(() => location.reload(), 3000);
+        }
+      }
+
+      // Check finish line collision
+      if (
+        player.x < finishLine.x + finishLine.width &&
+        player.x + player.width > finishLine.x &&
+        player.y < finishLine.y + finishLine.height &&
+        player.y + player.height > finishLine.y
+      ) {
+        gameOver = true;
+        messageText = "Peter is the best!";
+        messageTimer = 600;
+        setTimeout(() => location.reload(), 10000);
+      }
+    }
+
+    function updateEnemies() {
+      for (const enemy of enemies) {
+        enemy.x += enemy.dx;
+        if (enemy.x < 0 || enemy.x + enemy.width > platforms[0].width) {
+          enemy.dx *= -1;
+        }
+      }
+    }
+
+    const finishLine = {
+      x: 1900,
+      y: platforms[0].y - finishSprite.length * scale,
+      width: finishSprite[0].length * scale,
+      height: finishSprite.length * scale,
+    };
+
+    function drawPlatform(plat) {
+      ctx.fillStyle = "#228B22";
+      ctx.fillRect(plat.x - cameraX, plat.y, plat.width, plat.height);
+    }
+
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#654321";
-      for (let plat of platforms) ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
-      drawPlayer(player.x, player.y);
-    }
-    function gameLoop() {
-      update();
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
-    gameLoop();
 
-    // Live clock
-    function updateClock() {
-      const now = new Date();
-      document.getElementById("clock").textContent = now.toLocaleTimeString();
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
+      // Draw all platforms
+      for (const plat of platforms) {
+        drawPlatform(plat);
+      }
 
-    // Fun fact
-    const facts = [
-      "Bananas are berries, but strawberries aren't!",
-      "Honey never spoils. Archaeologists have found 3000-year-old jars of it!",
-      "Octopuses have three hearts.",
-      "A group of flamingos is called a 'flamboyance'.",
-      "Your nose can remember 50,000 different scents."
-    ];
-    document.getElementById("funFact").textContent = facts[Math.floor(Math.random() * facts.length)];
+      // Draw bones on platforms
+      for (const bone of bones) {
+        if (!bone.collected) drawBone(bone.x - cameraX, bone.y);
+      }
+
+      // Draw enemies
+      for (const enemy of enemies) {
+        drawEnemy(enemy.x - cameraX, enemy.y, enemy.dx < 0);
+      }
+
+      // Draw finish line
+      drawFinish(finishLine.x - cameraX, finishLine.y);
+
+      // Draw player
+      drawCat(player.x - cameraX, player.y, player.direction === "left");
+
+      ctx.fillStyle = "#00c9ff";
+      ctx.font = "16px Roboto";
+      ctx.fillText(`Bones: ${collectedBones}`, 20, 30);
+
+      if (messageTimer > 0) {
+        ctx.fillStyle = "yellow";
+        ctx.font = "24px Roboto";
+        ctx.fillText(messageText, canvas.width / 2 - 100, 60);
+        messageTimer--;
+      }
+    }
+
+    function loop() {
+      if (!gameOver) {
+        updatePlayer();
+        updateEnemies();
+        checkCollisions();
+        draw();
+        requestAnimationFrame(loop);
+      } else {
+        draw();
+      }
+    }
+
+    loop();
   </script>
 </body>
 </html>
