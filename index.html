@@ -1,10 +1,50 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Peter Orlowski</title>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <style>
     :root {
       --primary-color: #ffffff;
@@ -28,6 +68,39 @@
       margin: 0 auto;
       border: 2px solid #0044bb;
     }
+    .controls {
+      margin: 20px auto;
+      font-size: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      align-items: center;
+    }
+    .controls button {
+      background: #0044bb;
+      border: 2px solid var(--accent-color);
+      color: var(--accent-color);
+      padding: 15px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 28px;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    .controls button i {
+      font-size: 36px; /* Increased icon size for larger arrows */
+    }
+    .controls button:hover {
+      background: #0055cc;
+    }
+    .controls button:active {
+      background: #003399;
+    }
   </style>
 </head>
 <body>
@@ -36,7 +109,12 @@
     <p></p>
   </header>
   <canvas id="gameCanvas" width="960" height="320"></canvas>
-  <footer>&copy; 2025 Peter Orlowski</footer>
+  <div class="controls">
+    <button id="leftBtn"><i class="fas fa-arrow-left"></i> Left</button>
+    <button id="rightBtn"><i class="fas fa-arrow-right"></i> Right</button>
+    <button id="jumpBtn"><i class="fas fa-arrow-up"></i> Jump</button>
+  </div>
+  <footer>© 2025 Peter Orlowski</footer>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
@@ -254,7 +332,7 @@
       ctx.restore();
     }
 
-    // Random ground width between 2000 and 3000 pixels
+    // Random ground width between 20000 and 21000 pixels
     const groundWidth = 20000 + Math.random() * 1000;
 
     // Ground platform with dynamic width
@@ -262,59 +340,60 @@
       { x: 0, y: 280, width: groundWidth, height: 40 }
     ];
 
-let lastPlatformRightEdge = 100;  // start position for first platform
+    let lastPlatformRightEdge = 100;  // start position for first platform
 
-for (let i = 0; i < 100; i++) {
-  // Random gap between 50 and 70 pixels from last platform's right edge
-  const gap = 111 + Math.random() * 50;
+    for (let i = 0; i < 100; i++) {
+      // Random gap between 111 and 161 pixels from last platform's right edge
+      const gap = 111 + Math.random() * 50;
 
-  // Random width between 80 and 150
-  const width = 20 + Math.random() * 100;
+      // Random width between 20 and 120
+      const width = 20 + Math.random() * 100;
 
-  const x = lastPlatformRightEdge + gap;
+      const x = lastPlatformRightEdge + gap;
 
-  // Random y between 120 and 240 (floating platforms)
-  const y = 120 + Math.random() * 120;
+      // Random y between 120 and 240 (floating platforms)
+      const y = 120 + Math.random() * 120;
 
-  platforms.push({ x, y, width, height: 15 });
+      platforms.push({ x, y, width, height: 15 });
 
-  lastPlatformRightEdge = x + width; // update right edge for next platform
-}
+      lastPlatformRightEdge = x + width; // update right edge for next platform
+    }
+
     // Bones - one on each platform centered horizontally
-const bones = [];
+    const bones = [];
 
-platforms.forEach(plat => {
-  // Determine how many bones to place per platform
-  // For example, one bone every 150 pixels, minimum 1 bone per platform
-  const bonesCount = Math.max(1, Math.floor(plat.width / 1500));
-  
-  for (let i = 0; i < bonesCount; i++) {
-    const x = plat.x + (i + 0.5) * (plat.width / bonesCount) - (122 * (scale / 2)); // spread evenly on platform
-    const y = plat.y - 25; // 25px above platform
-    
-    bones.push({
-      x,
-      y,
-      collected: false
+    platforms.forEach(plat => {
+      // Determine how many bones to place per platform
+      // For example, one bone every 1500 pixels, minimum 1 bone per platform
+      const bonesCount = Math.max(1, Math.floor(plat.width / 1500));
+      
+      for (let i = 0; i < bonesCount; i++) {
+        const x = plat.x + (i + 0.5) * (plat.width / bonesCount) - (122 * (scale / 2)); // spread evenly on platform
+        const y = plat.y - 25; // 25px above platform
+        
+        bones.push({
+          x,
+          y,
+          collected: false
+        });
+      }
     });
-  }
-});
 
+    const enemies = [];
+    const numberOfDogs = 100;
+    const spacing = 300;  // space between each dog
 
-const enemies = [];
-const numberOfDogs = 100;
-const spacing = 300;  // space between each dog
-
-for (let i = 0; i < numberOfDogs; i++) {
-  enemies.push({
-    x: 400 + i * spacing,
-    y: platforms[0].y - enemySpriteRight.length * scale,
-    dx: i % 2 === 0 ? 1 : -1,  // alternate movement directions
-    width: enemySpriteRight[0].length * scale,
-    height: enemySpriteRight.length * scale
-  });
-}
-
+    for (let i = 0; i < numberOfDogs; i++) {
+      enemies.push({
+        x: 400 + i * spacing,
+        y: platforms[0].y - enemySpriteRight.length * scale,
+        dx: i % 2 === 0 ? 1 : -1,  // alternate movement directions
+        width: enemySpriteRight[0].length * scale,
+        height: enemySpriteRight.length * scale,
+        moveCounter: 0,
+        moveLimit: 60  // Number of frames before changing direction
+      });
+    }
 
     // Finish line near right edge of ground
     const finishLine = {
@@ -341,6 +420,8 @@ for (let i = 0; i < numberOfDogs; i++) {
     const gravity = 0.6;
 
     const keys = { left: false, right: false, up: false };
+
+    // Keyboard controls
     document.addEventListener("keydown", (e) => {
       if (e.code === "ArrowLeft") keys.left = true;
       if (e.code === "ArrowRight") keys.right = true;
@@ -351,6 +432,24 @@ for (let i = 0; i < numberOfDogs; i++) {
       if (e.code === "ArrowRight") keys.right = false;
       if (e.code === "Space" || e.code === "ArrowUp") keys.up = false;
     });
+
+    // Button controls
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+    const jumpBtn = document.getElementById("jumpBtn");
+
+    leftBtn.addEventListener("mousedown", () => { keys.left = true; });
+    leftBtn.addEventListener("mouseup", () => { keys.left = false; });
+    leftBtn.addEventListener("touchstart", (e) => { e.preventDefault(); keys.left = true; });
+    leftBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.left = false; });
+
+    rightBtn.addEventListener("mousedown", () => { keys.right = true; });
+    rightBtn.addEventListener("mouseup", () => { keys.right = false; });
+    rightBtn.addEventListener("touchstart", (e) => { e.preventDefault(); keys.right = true; });
+    rightBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.right = false; });
+
+    jumpBtn.addEventListener("click", () => { if (player.grounded) keys.up = true; });
+    jumpBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (player.grounded) keys.up = true; });
 
     let collectedBones = 0;
     let messageText = "";
@@ -373,6 +472,7 @@ for (let i = 0; i < numberOfDogs; i++) {
       if (keys.up && player.grounded) {
         player.dy = -player.jumpForce;
         player.grounded = false;
+        keys.up = false; // Reset jump to prevent holding
       }
 
       player.dy += gravity;
@@ -450,28 +550,28 @@ for (let i = 0; i < numberOfDogs; i++) {
       }
     }
 
-function updateEnemies() {
-  for (const enemy of enemies) {
-    enemy.x += enemy.dx;
-    
-    enemy.moveCounter++;
-    if (enemy.moveCounter >= enemy.moveLimit) {
-      enemy.dx *= -1;         // flip direction
-      enemy.moveCounter = 0;  // reset counter
+    function updateEnemies() {
+      for (const enemy of enemies) {
+        enemy.x += enemy.dx;
+        
+        enemy.moveCounter++;
+        if (enemy.moveCounter >= enemy.moveLimit) {
+          enemy.dx *= -1;         // flip direction
+          enemy.moveCounter = 0;  // reset counter
+        }
+        
+        // Keep enemy inside ground platform bounds
+        if (enemy.x < 0) {
+          enemy.x = 0;
+          enemy.dx *= -1;
+          enemy.moveCounter = 0;
+        } else if (enemy.x + enemy.width > platforms[0].width) {
+          enemy.x = platforms[0].width - enemy.width;
+          enemy.dx *= -1;
+          enemy.moveCounter = 0;
+        }
+      }
     }
-    
-    // Keep enemy inside ground platform bounds
-    if (enemy.x < 0) {
-      enemy.x = 0;
-      enemy.dx *= -1;
-      enemy.moveCounter = 0;
-    } else if (enemy.x + enemy.width > platforms[0].width) {
-      enemy.x = platforms[0].width - enemy.width;
-      enemy.dx *= -1;
-      enemy.moveCounter = 0;
-    }
-  }
-}
 
     function drawPlatform(plat) {
       ctx.fillStyle = "#228B22";
