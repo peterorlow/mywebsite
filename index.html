@@ -129,7 +129,6 @@
     };
 
     function drawBone(x, y) {
-      // Smaller bones: half scale size
       for (let row = 0; row < boneSprite.length; row++) {
         for (let col = 0; col < boneSprite[row].length; col++) {
           const pixel = boneSprite[row][col];
@@ -255,44 +254,77 @@
       ctx.restore();
     }
 
-    // Platforms: ground + 20 floating platforms
+    // Random ground width between 2000 and 3000 pixels
+    const groundWidth = 20000 + Math.random() * 1000;
+
+    // Ground platform with dynamic width
     const platforms = [
-      { x: 0, y: 280, width: 2000, height: 40 }, // ground
-      { x: 150, y: 230, width: 100, height: 15 },
-      { x: 300, y: 180, width: 120, height: 15 },
-      { x: 470, y: 220, width: 90, height: 15 },
-      { x: 600, y: 160, width: 140, height: 15 },
-      { x: 780, y: 210, width: 110, height: 15 },
-      { x: 950, y: 170, width: 130, height: 15 },
-      { x: 1120, y: 200, width: 90, height: 15 },
-      { x: 1280, y: 150, width: 150, height: 15 },
-      { x: 1460, y: 220, width: 80, height: 15 },
-      { x: 1600, y: 180, width: 100, height: 15 },
-      { x: 1720, y: 210, width: 120, height: 15 },
-      { x: 1860, y: 170, width: 90, height: 15 },
-      { x: 1950, y: 230, width: 80, height: 15 },
-      { x: 2080, y: 180, width: 140, height: 15 },
-      { x: 2250, y: 200, width: 110, height: 15 },
-      { x: 2400, y: 160, width: 130, height: 15 },
-      { x: 2550, y: 210, width: 90, height: 15 },
-      { x: 2680, y: 220, width: 120, height: 15 },
-      { x: 2820, y: 180, width: 100, height: 15 },
-      { x: 2950, y: 230, width: 80, height: 15 },
+      { x: 0, y: 280, width: groundWidth, height: 40 }
     ];
 
+let lastPlatformRightEdge = 100;  // start position for first platform
+
+for (let i = 0; i < 100; i++) {
+  // Random gap between 50 and 70 pixels from last platform's right edge
+  const gap = 111 + Math.random() * 50;
+
+  // Random width between 80 and 150
+  const width = 20 + Math.random() * 100;
+
+  const x = lastPlatformRightEdge + gap;
+
+  // Random y between 120 and 240 (floating platforms)
+  const y = 120 + Math.random() * 120;
+
+  platforms.push({ x, y, width, height: 15 });
+
+  lastPlatformRightEdge = x + width; // update right edge for next platform
+}
     // Bones - one on each platform centered horizontally
-    const bones = platforms.map(plat => ({
-      x: plat.x + plat.width / 2 - (12 * (scale / 2)), // offset so bone center roughly aligned
-      y: plat.y - 25,
+const bones = [];
+
+platforms.forEach(plat => {
+  // Determine how many bones to place per platform
+  // For example, one bone every 150 pixels, minimum 1 bone per platform
+  const bonesCount = Math.max(1, Math.floor(plat.width / 1500));
+  
+  for (let i = 0; i < bonesCount; i++) {
+    const x = plat.x + (i + 0.5) * (plat.width / bonesCount) - (122 * (scale / 2)); // spread evenly on platform
+    const y = plat.y - 25; // 25px above platform
+    
+    bones.push({
+      x,
+      y,
       collected: false
-    }));
+    });
+  }
+});
 
-    // Enemies on ground only (you can add enemies to platforms later)
-    const enemies = [
-      { x: 500, y: platforms[0].y - enemySpriteRight.length * scale, dx: 1, width: enemySpriteRight[0].length * scale, height: enemySpriteRight.length * scale },
-      { x: 800, y: platforms[0].y - enemySpriteRight.length * scale, dx: -1, width: enemySpriteRight[0].length * scale, height: enemySpriteRight.length * scale }
-    ];
 
+const enemies = [];
+const numberOfDogs = 100;
+const spacing = 300;  // space between each dog
+
+for (let i = 0; i < numberOfDogs; i++) {
+  enemies.push({
+    x: 400 + i * spacing,
+    y: platforms[0].y - enemySpriteRight.length * scale,
+    dx: i % 2 === 0 ? 1 : -1,  // alternate movement directions
+    width: enemySpriteRight[0].length * scale,
+    height: enemySpriteRight.length * scale
+  });
+}
+
+
+    // Finish line near right edge of ground
+    const finishLine = {
+      x: groundWidth - finishSprite[0].length * scale - 50,
+      y: platforms[0].y - finishSprite.length * scale,
+      width: finishSprite[0].length * scale,
+      height: finishSprite.length * scale,
+    };
+
+    // Player starting position remains near left side
     const player = {
       x: 50,
       y: platforms[0].y - catSprite.length * scale,
@@ -370,10 +402,10 @@
         player.grounded = true;
       }
 
-      // Camera follows player
+      // Camera follows player with bounds
       cameraX = player.x + player.width / 2 - canvas.width / 2;
       if (cameraX < 0) cameraX = 0;
-      if (cameraX > platforms[0].width - canvas.width) cameraX = platforms[0].width - canvas.width;
+      if (cameraX > groundWidth - canvas.width) cameraX = groundWidth - canvas.width;
     }
 
     function checkCollisions() {
@@ -418,21 +450,28 @@
       }
     }
 
-    function updateEnemies() {
-      for (const enemy of enemies) {
-        enemy.x += enemy.dx;
-        if (enemy.x < 0 || enemy.x + enemy.width > platforms[0].width) {
-          enemy.dx *= -1;
-        }
-      }
+function updateEnemies() {
+  for (const enemy of enemies) {
+    enemy.x += enemy.dx;
+    
+    enemy.moveCounter++;
+    if (enemy.moveCounter >= enemy.moveLimit) {
+      enemy.dx *= -1;         // flip direction
+      enemy.moveCounter = 0;  // reset counter
     }
-
-    const finishLine = {
-      x: 1900,
-      y: platforms[0].y - finishSprite.length * scale,
-      width: finishSprite[0].length * scale,
-      height: finishSprite.length * scale,
-    };
+    
+    // Keep enemy inside ground platform bounds
+    if (enemy.x < 0) {
+      enemy.x = 0;
+      enemy.dx *= -1;
+      enemy.moveCounter = 0;
+    } else if (enemy.x + enemy.width > platforms[0].width) {
+      enemy.x = platforms[0].width - enemy.width;
+      enemy.dx *= -1;
+      enemy.moveCounter = 0;
+    }
+  }
+}
 
     function drawPlatform(plat) {
       ctx.fillStyle = "#228B22";
