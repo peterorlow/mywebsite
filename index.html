@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -93,13 +54,44 @@
       touch-action: manipulation;
     }
     .controls button i {
-      font-size: 36px; /* Increased icon size for larger arrows */
+      font-size: 36px;
     }
     .controls button:hover {
       background: #0055cc;
     }
     .controls button:active {
       background: #003399;
+    }
+    #namePrompt {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 20px;
+      border-radius: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      color: var(--primary-color);
+    }
+    #namePrompt input {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 4px;
+      border: 1px solid var(--accent-color);
+    }
+    #namePrompt button {
+      background: #0044bb;
+      border: 2px solid var(--accent-color);
+      color: var(--accent-color);
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #namePrompt button:hover {
+      background: #0055cc;
     }
   </style>
 </head>
@@ -111,522 +103,754 @@
   <canvas id="gameCanvas" width="960" height="320"></canvas>
   <div class="controls">
     <button id="leftBtn"><i class="fas fa-arrow-left"></i> Left</button>
-    <button id="rightBtn"><i class="fas fa-arrow-right"></i> Right</button>
     <button id="jumpBtn"><i class="fas fa-arrow-up"></i> Jump</button>
+    <button id="rightBtn"><i class="fas fa-arrow-right"></i> Right</button>
+  </div>
+  <div id="namePrompt">
+    <label for="playerName">Enter your name:</label>
+    <input type="text" id="playerName" maxlength="20" />
+    <button id="submitName">Start Game</button>
   </div>
   <footer>© 2025 Peter Orlowski</footer>
 
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/md5-js@0.0.2/md5.min.js"></script>
   <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const scale = 2;
+    // Wait for both Supabase and MD5 scripts to load
+    function initGame() {
+      if (typeof supabase === 'undefined' || typeof md5 === 'undefined') {
+        console.error('Supabase or MD5 library not loaded');
+        return;
+      }
 
-    const finishSprite = [
-      "bbb.......................................",
-      "bgbbbb...................................",
-      "bgbrrrbbb................................",
-      "bgbrrrrrrrbbb............................",
-      "bgbrrrrrrrrrbbb..........................",
-      "bgbrrrrrrrrrrrrbbbb......................",
-      "bgbrrrrrrrrrrrrrrrrbbb...................",
-      "bgbrrrrrrrrrrrrrrrrrrrbbb................",
-      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
-      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
-      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
-      "bgbwwwrrrrrrrrrrrrrrrrrrrb...............",
-      "bgbwwwwwwrrrrrrrrrrrrrrrrb...............",
-      "bgbwwwwwwwwwrrrrrrrrrrrrrb...............",
-      "bgbwwwwwwwwwwwwrrrrrrrrrrb...............",
-      "bgbwwwwwwwwwwwwwwwwrrrrrrb...............",
-      "bgbwwwwwwwwwwwwwwwwwwwrrrb...............",
-      "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
-      "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
-      "bgbbbbwwwwwwwwwwwwwwwwwwwb...............",
-      "bgb...bbbwwwwwwwwwwwwwwwwb...............",
-      "bgb......bbbwwwwwwwwwwwwwb...............",
-      "bgb..........bbbwwwwwwwwwb...............",
-      "bgb.............bbbwwwwwwb...............",
-      "bgb................bbbwwwb...............",
-      "bgb...................bbbb...............",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................",
-      "bgb......................................"
-    ];
+// Initialize Supabase client properly
+const supabaseUrl = 'https://gydqmzmrljzjuxpsiawd.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5ZHFtem1ybGp6anV4cHNpYXdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMDkyNDcsImV4cCI6MjA2NjY4NTI0N30.oOOP6m_QA1SzsUSq0n6kqoxtqT6sr61B2qy5jRTtbs4';
+const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    const finishColorMap = {
-      b: '#000000',
-      g: '#808080',
-      w: '#ff0000',
-      r: '#ffffff',
-      '.': null
-    };
+// Make it globally available for console testing
+window.supabase = supabase;
 
-    function drawFinish(x, y) {
-      for (let row = 0; row < finishSprite.length; row++) {
-        for (let col = 0; col < finishSprite[row].length; col++) {
-          const pixel = finishSprite[row][col];
-          const color = finishColorMap[pixel];
-          if (color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(x + col * scale, y + row * scale, scale, scale);
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const scale = 2;
+
+      const finishSprite = [
+        "bbb.......................................",
+        "bgbbbb...................................",
+        "bgbrrrbbb................................",
+        "bgbrrrrrrrbbb............................",
+        "bgbrrrrrrrrrbbb..........................",
+        "bgbrrrrrrrrrrrrbbbb......................",
+        "bgbrrrrrrrrrrrrrrrrbbb...................",
+        "bgbrrrrrrrrrrrrrrrrrrrbbb................",
+        "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+        "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+        "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+        "bgbwwwrrrrrrrrrrrrrrrrrrrb...............",
+        "bgbwwwwwwrrrrrrrrrrrrrrrrb...............",
+        "bgbwwwwwwwwwrrrrrrrrrrrrrb...............",
+        "bgbwwwwwwwwwwwwrrrrrrrrrrb...............",
+        "bgbwwwwwwwwwwwwwwwwrrrrrrb...............",
+        "bgbwwwwwwwwwwwwwwwwwwwrrrb...............",
+        "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
+        "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
+        "bgbbbbwwwwwwwwwwwwwwwwwwwb...............",
+        "bgb...bbbwwwwwwwwwwwwwwwwb...............",
+        "bgb......bbbwwwwwwwwwwwwwb...............",
+        "bgb..........bbbwwwwwwwwwb...............",
+        "bgb.............bbbwwwwwwb...............",
+        "bgb................bbbwwwb...............",
+        "bgb...................bbbb...............",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................",
+        "bgb......................................"
+      ];
+
+      const finishColorMap = {
+        b: '#000000',
+        g: '#808080',
+        w: '#ff0000',
+        r: '#ffffff',
+        '.': null
+      };
+
+      function drawFinish(x, y) {
+        for (let row = 0; row < finishSprite.length; row++) {
+          for (let col = 0; col < finishSprite[row].length; col++) {
+            const pixel = finishSprite[row][col];
+            const color = finishColorMap[pixel];
+            if (color) {
+              ctx.fillStyle = color;
+              ctx.fillRect(x + col * scale, y + row * scale, scale, scale);
+            }
           }
         }
       }
-    }
 
-    const boneSprite = [
-      "..bbb...................bbb....",
-      ".bGGGB.................BGGGb....",
-      "bGGWWWb...............bGWWWGb...",
-      "bGWWWWGbbbbbbbbbbbbbbWWWWWWGb...",
-      ".bWWWWWGGGGGGGGGGGGGWWWWWWb....",
-      "..bWWWWWWWWWWWWWWWWWWWWWWb.....",
-      "..bWWWWWWWWWWWWWWWWWWWWWWb....",
-      ".bWWWWWWWWWWWWWWWWWWWWWWWWb...",
-      "bGWWWWWbbbbbbbbbbbbbbWWWWWWb..",
-      "bGGWWWb..............bWWWWWb..",
-      ".bGGGb................bGGGb..",
-      "..bbb..................bbb..."
-    ];
+      const boneSprite = [
+        "..bbb...................bbb....",
+        ".bGGGB.................BGGGb....",
+        "bGGWWWb...............bGWWWGb...",
+        "bGWWWWGbbbbbbbbbbbbbbWWWWWWGb...",
+        ".bWWWWWGGGGGGGGGGGGGWWWWWWb....",
+        "..bWWWWWWWWWWWWWWWWWWWWWWb.....",
+        "..bWWWWWWWWWWWWWWWWWWWWWWb....",
+        ".bWWWWWWWWWWWWWWWWWWWWWWWWb...",
+        "bGWWWWWbbbbbbbbbbbbbbWWWWWWb..",
+        "bGGWWWb..............bWWWWWb..",
+        ".bGGGb................bGGGb..",
+        "..bbb..................bbb..."
+      ];
 
-    const boneColorMap = {
-      b: '#000000',
-      G: '#888888',
-      W: '#ffffff',
-      '.': null
-    };
+      const boneColorMap = {
+        b: '#000000',
+        G: '#888888',
+        W: '#ffffff',
+        '.': null
+      };
 
-    function drawBone(x, y) {
-      for (let row = 0; row < boneSprite.length; row++) {
-        for (let col = 0; col < boneSprite[row].length; col++) {
-          const pixel = boneSprite[row][col];
-          const color = boneColorMap[pixel];
-          if (color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(x + col * (scale / 2), y + row * (scale / 2), scale / 2, scale / 2);
+      function drawBone(x, y) {
+        for (let row = 0; row < boneSprite.length; row++) {
+          for (let col = 0; col < boneSprite[row].length; col++) {
+            const pixel = boneSprite[row][col];
+            const color = boneColorMap[pixel];
+            if (color) {
+              ctx.fillStyle = color;
+              ctx.fillRect(x + col * (scale / 2), y + row * (scale / 2), scale / 2, scale / 2);
+            }
           }
         }
       }
-    }
 
-    const catSprite = [
-      "...........................",
-      "...........................",
-      "...........................",
-      "...........................",
-      "...........................",
-      ".............BB........BB..",
-      ".............BGB......BGB..",
-      ".............BGGB....BGGB..",
-      ".............BGGGBBBBGGGB..",
-      "...BB........BGGGGGGGGGGB..",
-      "..BGGB.......BGGGGGGGGGGB..",
-      ".BGGGB.......BGGGGGGGGGGB..",
-      "BGGBB........BGGBGGGGBGGB..",
-      "BGB..........BGBGBGGBGBGB..",
-      "BGB..........BPPGGGGGGPPB..",
-      "BGB.....BBBBBGBGGGGGGGGB...",
-      "BGB....BGGGGGGGBGGGGGGB....",
-      "BGGB..BGGGBBGGGGBBBBBB.....",
-      ".BGGBBBGGGGGBGGGGGGGB......",
-      "..BGGGBGGGGGBGGGGGGBBB.....",
-      "...BBBBGGGGGGBGGGGGGGGB....",
-      ".......BBBBBBBBBBBBBBB....."
-    ];
+      const catSprite = [
+        "...........................",
+        "...........................",
+        "...........................",
+        "...........................",
+        "...........................",
+        ".............BB........BB..",
+        ".............BGB......BGB..",
+        ".............BGGB....BGGB..",
+        ".............BGGGBBBBGGGB..",
+        "...BB........BGGGGGGGGGGB..",
+        "..BGGB.......BGGGGGGGGGGB..",
+        ".BGGGB.......BGGGGGGGGGGB..",
+        "BGGBB........BGGBGGGGBGGB..",
+        "BGB..........BGBGBGGBGBGB..",
+        "BGB..........BPPGGGGGGPPB..",
+        "BGB.....BBBBBGBGGGGGGGGB...",
+        "BGB....BGGGGGGGBGGGGGGB....",
+        "BGGB..BGGGBBGGGGBBBBBB.....",
+        ".BGGBBBGGGGGBGGGGGGGB......",
+        "..BGGGBGGGGGBGGGGGGBBB.....",
+        "...BBBBGGGGGGBGGGGGGGGB....",
+        ".......BBBBBBBBBBBBBBB....."
+      ];
 
-    const catColorMap = {
-      B: "#000000",
-      G: "#888888",
-      P: "#FF69B4",
-      ".": null,
-    };
+      const catColorMap = {
+        B: "#000000",
+        G: "#888888",
+        P: "#FF69B4",
+        ".": null,
+      };
 
-    function drawCat(x, y, flipped) {
-      ctx.save();
-      if (flipped) {
-        ctx.translate(x + catSprite[0].length * scale, y);
-        ctx.scale(-1, 1);
-        x = 0;
-        y = 0;
-      } else {
-        ctx.translate(x, y);
-        x = 0;
-        y = 0;
-      }
-      for (let row = 0; row < catSprite.length; row++) {
-        for (let col = 0; col < catSprite[row].length; col++) {
-          const pixel = catSprite[row][col];
-          const color = catColorMap[pixel];
-          if (color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(col * scale, row * scale, scale, scale);
+      function drawCat(x, y, flipped) {
+        ctx.save();
+        if (flipped) {
+          ctx.translate(x + catSprite[0].length * scale, y);
+          ctx.scale(-1, 1);
+          x = 0;
+          y = 0;
+        } else {
+          ctx.translate(x, y);
+          x = 0;
+          y = 0;
+        }
+        for (let row = 0; row < catSprite.length; row++) {
+          for (let col = 0; col < catSprite[row].length; col++) {
+            const pixel = catSprite[row][col];
+            const color = catColorMap[pixel];
+            if (color) {
+              ctx.fillStyle = color;
+              ctx.fillRect(col * scale, row * scale, scale, scale);
+            }
           }
         }
+        ctx.restore();
       }
-      ctx.restore();
-    }
 
-    const enemySpriteRight = [
-      "...............BBB........BB.",
-      "...............BRRB......BRB..",
-      "...............BWWRBBBBBBRRB.",
-      "...............BBWRBRRRRRBBB..",
-      ".BBB............BWWWBRRWWWB",
-      "BWB.............BRRWBRRBWBBB..",
-      "BWB.............BRRRRRWWWWBBB.",
-      "BWWB.............BRWWWWWWWBWB..",
-      ".BWWBBBBbBBBBBBBBBRBWWWWWWBWB.",
-      "..BBRRRRRRRRRRRRRRWWWBBBBBBB.",
-      "...BRRRRRRRRRRRRWWWWWWWWWWB",     
-      "...BWRRRRRRRRRWWWBBBBBBBBB",
-      "...BWRRRRRRRRWWWB.",
-      "...BWWRRRRRRRWWWB..",
-      "...BWWWRRRRRRWWWB.....",
-      "...BWWWWRRRRWWWBB....",
-      "...BWWBBBBBBWWBWB..",
-      "...BWWBWB..BWWBWB....",
-      "...BWWBWB..BWWBWB..",
-      "...BWWWBWB.BWWWBWB..",
-      "....BBBBBB..BBBBBB."
-    ];
+      const enemySpriteRight = [
+        "...............BBB........BB.",
+        "...............BRRB......BRB..",
+        "...............BWWRBBBBBBRRB.",
+        "...............BBWRBRRRRRBBB..",
+        ".BBB............BWWWBRRWWWB",
+        "BWB.............BRRWBRRBWBBB..",
+        "BWB.............BRRRRRWWWWBBB.",
+        "BWWB.............BRWWWWWWWBWB..",
+        ".BWWBBBBbBBBBBBBBBRBWWWWWWBWB.",
+        "..BBRRRRRRRRRRRRRRWWWBBBBBBB.",
+        "...BRRRRRRRRRRRRWWWWWWWWWWB",
+        "...BWRRRRRRRRRWWWBBBBBBBBB",
+        "...BWRRRRRRRRWWWB.",
+        "...BWWRRRRRRRWWWB..",
+        "...BWWWRRRRRRWWWB.....",
+        "...BWWWWRRRRWWWBB....",
+        "...BWWBBBBBBWWBWB..",
+        "...BWWBWB..BWWBWB....",
+        "...BWWBWB..BWWBWB..",
+        "...BWWWBWB.BWWWBWB..",
+        "....BBBBBB..BBBBBB."
+      ];
 
-    const enemyColorMap = {
-      B: "#000000",
-      R: "#8B4513",
-      W: "#ffffff",
-      ".": null,
-    };
+      const enemyColorMap = {
+        B: "#000000",
+        R: "#8B4513",
+        W: "#ffffff",
+        ".": null,
+      };
 
-    function drawEnemy(x, y, flipped) {
-      ctx.save();
-      if (flipped) {
-        ctx.translate(x + enemySpriteRight[0].length * scale, y);
-        ctx.scale(-1, 1);
-        x = 0;
-        y = 0;
-      } else {
-        ctx.translate(x, y);
-        x = 0;
-        y = 0;
-      }
-      for (let row = 0; row < enemySpriteRight.length; row++) {
-        for (let col = 0; col < enemySpriteRight[row].length; col++) {
-          const pixel = enemySpriteRight[row][col];
-          const color = enemyColorMap[pixel];
-          if (color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(col * scale, row * scale, scale, scale);
+      function drawEnemy(x, y, flipped) {
+        ctx.save();
+        if (flipped) {
+          ctx.translate(x + enemySpriteRight[0].length * scale, y);
+          ctx.scale(-1, 1);
+          x = 0;
+          y = 0;
+        } else {
+          ctx.translate(x, y);
+          x = 0;
+          y = 0;
+        }
+        for (let row = 0; row < enemySpriteRight.length; row++) {
+          for (let col = 0; col < enemySpriteRight[row].length; col++) {
+            const pixel = enemySpriteRight[row][col];
+            const color = enemyColorMap[pixel];
+            if (color) {
+              ctx.fillStyle = color;
+              ctx.fillRect(col * scale, row * scale, scale, scale);
+            }
           }
         }
+        ctx.restore();
       }
-      ctx.restore();
-    }
 
-    // Random ground width between 20000 and 21000 pixels
-    const groundWidth = 20000 + Math.random() * 1000;
+      const birdSprite = [
+        "...............",
+        "....BBB........",
+        "...BWWWB.......",
+        "..BWWWWWBB.....",
+        ".BWWWWWWWBB....",
+        "BWWWWWWWWWBB...",
+        "BWWWBWWWWWBBB..",
+        "BWWB.BWWWBBBB..",
+        "BWWB..BBBBBB...",
+        "BWWB...........",
+        "BWWB...........",
+        ".BBB..........."
+      ];
 
-    // Ground platform with dynamic width
-    const platforms = [
-      { x: 0, y: 280, width: groundWidth, height: 40 }
-    ];
+      const birdColorMap = {
+        B: "#000000",
+        W: "#FFFF00",
+        ".": null
+      };
 
-    let lastPlatformRightEdge = 100;  // start position for first platform
+      function drawBird(x, y, flipped) {
+        ctx.save();
+        if (flipped) {
+          ctx.translate(x + birdSprite[0].length * scale, y);
+          ctx.scale(-1, 1);
+          x = 0;
+          y = 0;
+        } else {
+          ctx.translate(x, y);
+          x = 0;
+          y = 0;
+        }
+        for (let row = 0; row < birdSprite.length; row++) {
+          for (let col = 0; col < birdSprite[row].length; col++) {
+            const pixel = birdSprite[row][col];
+            const color = birdColorMap[pixel];
+            if (color) {
+              ctx.fillStyle = color;
+              ctx.fillRect(col * scale, row * scale, scale, scale);
+            }
+          }
+        }
+        ctx.restore();
+      }
 
-    for (let i = 0; i < 100; i++) {
-      // Random gap between 111 and 161 pixels from last platform's right edge
-      const gap = 111 + Math.random() * 50;
+      // Random ground width between 20000 and 21000 pixels
+      const groundWidth = 20000 + Math.random() * 1000;
 
-      // Random width between 20 and 120
-      const width = 20 + Math.random() * 100;
+      // Ground platform with dynamic width
+      const platforms = [
+        { x: 0, y: 280, width: groundWidth, height: 40 }
+      ];
 
-      const x = lastPlatformRightEdge + gap;
+      let lastPlatformRightEdge = 100;  // start position for first platform
 
-      // Random y between 120 and 240 (floating platforms)
-      const y = 120 + Math.random() * 120;
+      for (let i = 0; i < 100; i++) {
+        const gap = 111 + Math.random() * 50;
+        const width = 20 + Math.random() * 100;
+        const x = lastPlatformRightEdge + gap;
+        const y = 120 + Math.random() * 120;
+        platforms.push({ x, y, width, height: 15 });
+        lastPlatformRightEdge = x + width;
+      }
 
-      platforms.push({ x, y, width, height: 15 });
+      // Bones - one on each platform centered horizontally
+      const bones = [];
 
-      lastPlatformRightEdge = x + width; // update right edge for next platform
-    }
+      platforms.forEach(plat => {
+        const bonesCount = Math.max(1, Math.floor(plat.width / 1500));
+        for (let i = 0; i < bonesCount; i++) {
+          const x = plat.x + (i + 0.5) * (plat.width / bonesCount) - (122 * (scale / 2));
+          const y = plat.y - 25;
+          bones.push({
+            x,
+            y,
+            collected: false
+          });
+        }
+      });
 
-    // Bones - one on each platform centered horizontally
-    const bones = [];
+      const enemies = [];
+      const numberOfDogs = 100;
+      const spacing = 300;
 
-    platforms.forEach(plat => {
-      // Determine how many bones to place per platform
-      // For example, one bone every 1500 pixels, minimum 1 bone per platform
-      const bonesCount = Math.max(1, Math.floor(plat.width / 1500));
-      
-      for (let i = 0; i < bonesCount; i++) {
-        const x = plat.x + (i + 0.5) * (plat.width / bonesCount) - (122 * (scale / 2)); // spread evenly on platform
-        const y = plat.y - 25; // 25px above platform
-        
-        bones.push({
-          x,
-          y,
-          collected: false
+      for (let i = 0; i < numberOfDogs; i++) {
+        enemies.push({
+          x: 400 + i * spacing,
+          y: platforms[0].y - enemySpriteRight.length * scale,
+          dx: i % 2 === 0 ? 1 : -1,
+          width: enemySpriteRight[0].length * scale,
+          height: enemySpriteRight.length * scale,
+          moveCounter: 0,
+          moveLimit: 60,
+          type: "dog"
         });
       }
-    });
 
-    const enemies = [];
-    const numberOfDogs = 100;
-    const spacing = 300;  // space between each dog
+      const birds = [];
+      for (let i = 1; i < platforms.length; i += 2) {
+        const plat = platforms[i];
+        birds.push({
+          x: plat.x + plat.width / 2,
+          y: plat.y - birdSprite.length * scale - 10,
+          dx: 1,
+          width: birdSprite[0].length * scale,
+          height: birdSprite.length * scale,
+          moveCounter: 0,
+          moveLimit: 60,
+          rangeX: 100,
+          initialX: plat.x + plat.width / 2
+        });
+      }
 
-    for (let i = 0; i < numberOfDogs; i++) {
-      enemies.push({
-        x: 400 + i * spacing,
-        y: platforms[0].y - enemySpriteRight.length * scale,
-        dx: i % 2 === 0 ? 1 : -1,  // alternate movement directions
-        width: enemySpriteRight[0].length * scale,
-        height: enemySpriteRight.length * scale,
-        moveCounter: 0,
-        moveLimit: 60  // Number of frames before changing direction
+      const finishLine = {
+        x: groundWidth - finishSprite[0].length * scale - 50,
+        y: platforms[0].y - finishSprite.length * scale,
+        width: finishSprite[0].length * scale,
+        height: finishSprite.length * scale,
+      };
+
+      const player = {
+        x: 50,
+        y: platforms[0].y - catSprite.length * scale,
+        dx: 0,
+        dy: 0,
+        speed: 3,
+        jumpForce: 18,
+        width: catSprite[0].length * scale,
+        height: catSprite.length * scale,
+        grounded: false,
+        direction: "right"
+      };
+
+      const gravity = 0.6;
+      const keys = { left: false, right: false, up: false };
+      let collectedBones = 0;
+      let messageText = "";
+      let messageTimer = 0;
+      let gameOver = false;
+      let cameraX = 0;
+      let playerName = "";
+      let highscores = [];
+      let gameStarted = false;
+
+      // Name prompt handling
+      const namePrompt = document.getElementById("namePrompt");
+      const playerNameInput = document.getElementById("playerName");
+      const submitNameButton = document.getElementById("submitName");
+
+      function showNamePrompt() {
+        namePrompt.style.display = "flex";
+        playerNameInput.focus();
+      }
+
+      submitNameButton.addEventListener("click", () => {
+        let name = playerNameInput.value.trim();
+        // Sanitize name: remove non-alphanumeric, limit to 20 chars
+        name = name.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 20);
+        if (name.length > 0) {
+          playerName = name;
+          namePrompt.style.display = "none";
+          gameStarted = true;
+          initializeDatabase();
+          loop();
+        }
       });
-    }
 
-    // Finish line near right edge of ground
-    const finishLine = {
-      x: groundWidth - finishSprite[0].length * scale - 50,
-      y: platforms[0].y - finishSprite.length * scale,
-      width: finishSprite[0].length * scale,
-      height: finishSprite.length * scale,
-    };
+      playerNameInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          submitNameButton.click();
+        }
+      });
 
-    // Player starting position remains near left side
-    const player = {
-      x: 50,
-      y: platforms[0].y - catSprite.length * scale,
-      dx: 0,
-      dy: 0,
-      speed: 3,
-      jumpForce: 18,
-      width: catSprite[0].length * scale,
-      height: catSprite.length * scale,
-      grounded: false,
-      direction: "right"
-    };
+      // Show name prompt on load
+      showNamePrompt();
 
-    const gravity = 0.6;
-
-    const keys = { left: false, right: false, up: false };
-
-    // Keyboard controls
-    document.addEventListener("keydown", (e) => {
-      if (e.code === "ArrowLeft") keys.left = true;
-      if (e.code === "ArrowRight") keys.right = true;
-      if (e.code === "Space" || e.code === "ArrowUp") keys.up = true;
-    });
-    document.addEventListener("keyup", (e) => {
-      if (e.code === "ArrowLeft") keys.left = false;
-      if (e.code === "ArrowRight") keys.right = false;
-      if (e.code === "Space" || e.code === "ArrowUp") keys.up = false;
-    });
-
-    // Button controls
-    const leftBtn = document.getElementById("leftBtn");
-    const rightBtn = document.getElementById("rightBtn");
-    const jumpBtn = document.getElementById("jumpBtn");
-
-    leftBtn.addEventListener("mousedown", () => { keys.left = true; });
-    leftBtn.addEventListener("mouseup", () => { keys.left = false; });
-    leftBtn.addEventListener("touchstart", (e) => { e.preventDefault(); keys.left = true; });
-    leftBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.left = false; });
-
-    rightBtn.addEventListener("mousedown", () => { keys.right = true; });
-    rightBtn.addEventListener("mouseup", () => { keys.right = false; });
-    rightBtn.addEventListener("touchstart", (e) => { e.preventDefault(); keys.right = true; });
-    rightBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.right = false; });
-
-    jumpBtn.addEventListener("click", () => { if (player.grounded) keys.up = true; });
-    jumpBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (player.grounded) keys.up = true; });
-
-    let collectedBones = 0;
-    let messageText = "";
-    let messageTimer = 0;
-    let gameOver = false;
-
-    let cameraX = 0;
-
-    function updatePlayer() {
-      if (keys.left) {
-        player.dx = -player.speed;
-        player.direction = "left";
-      } else if (keys.right) {
-        player.dx = player.speed;
-        player.direction = "right";
-      } else {
-        player.dx = 0;
+      // Updated High Score functions
+      async function initializeDatabase() {
+        try {
+          // First try to create the table if it doesn't exist
+          const { error: createError } = await supabase.rpc('create_highscores_table');
+          if (createError && !createError.message.includes("already exists")) {
+            console.error('Table creation error:', createError);
+          }
+          
+          await fetchHighscores();
+        } catch (error) {
+          console.error('Database initialization error:', error);
+        }
       }
 
-      if (keys.up && player.grounded) {
-        player.dy = -player.jumpForce;
+      async function submitScore(name, score) {
+        try {
+          // First try direct insert
+          const { error: insertError } = await supabase
+            .from('highscores')
+            .insert([{ name, score }]);
+          
+          if (insertError) {
+            // If direct insert fails, try RPC method
+            const hash = md5(name + score + SECRET_KEY);
+            const { error: rpcError } = await supabase
+              .rpc('submit_score', {
+                player_name: name,
+                player_score: score,
+                score_hash: hash
+              });
+              
+            if (rpcError) throw rpcError;
+          }
+          
+          messageText = "Score submitted!";
+          messageTimer = 180;
+          await fetchHighscores();
+        } catch (error) {
+          console.error('Score submission error:', error);
+          messageText = "Failed to submit score. See console for details.";
+          messageTimer = 180;
+        }
+      }
+
+      async function fetchHighscores() {
+        try {
+          const { data, error } = await supabase
+            .from('highscores')
+            .select('name, score')
+            .order('score', { ascending: false })
+            .limit(10);
+            
+          if (error) throw error;
+          
+          highscores = data || [];
+          console.log('Fetched highscores:', highscores);
+        } catch (error) {
+          console.error('Error fetching highscores:', error);
+          highscores = [];
+        }
+      }
+
+      // Keyboard controls
+      document.addEventListener("keydown", (e) => {
+        if (gameStarted) {
+          if (e.code === "ArrowLeft") keys.left = true;
+          if (e.code === "ArrowRight") keys.right = true;
+          if (e.code === "Space" || e.code === "ArrowUp") keys.up = true;
+        }
+      });
+      document.addEventListener("keyup", (e) => {
+        if (e.code === "ArrowLeft") keys.left = false;
+        if (e.code === "ArrowRight") keys.right = false;
+        if (e.code === "Space" || e.code === "ArrowUp") keys.up = false;
+      });
+
+      // Button controls
+      const leftBtn = document.getElementById("leftBtn");
+      const rightBtn = document.getElementById("rightBtn");
+      const jumpBtn = document.getElementById("jumpBtn");
+
+      leftBtn.addEventListener("mousedown", () => { if (gameStarted) keys.left = true; });
+      leftBtn.addEventListener("mouseup", () => { keys.left = false; });
+      leftBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (gameStarted) keys.left = true; });
+      leftBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.left = false; });
+
+      rightBtn.addEventListener("mousedown", () => { if (gameStarted) keys.right = true; });
+      rightBtn.addEventListener("mouseup", () => { keys.right = false; });
+      rightBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (gameStarted) keys.right = true; });
+      rightBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.right = false; });
+
+      jumpBtn.addEventListener("click", () => { if (gameStarted && player.grounded) keys.up = true; });
+      jumpBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (gameStarted && player.grounded) keys.up = true; });
+
+      function updatePlayer() {
+        if (keys.left) {
+          player.dx = -player.speed;
+          player.direction = "left";
+        } else if (keys.right) {
+          player.dx = player.speed;
+          player.direction = "right";
+        } else {
+          player.dx = 0;
+        }
+
+        if (keys.up && player.grounded) {
+          player.dy = -player.jumpForce;
+          player.grounded = false;
+          keys.up = false;
+        }
+
+        player.dy += gravity;
+        player.x += player.dx;
+        player.y += player.dy;
+
         player.grounded = false;
-        keys.up = false; // Reset jump to prevent holding
-      }
+        for (const plat of platforms) {
+          if (
+            player.x + player.width > plat.x &&
+            player.x < plat.x + plat.width &&
+            player.y + player.height > plat.y &&
+            player.y + player.height < plat.y + plat.height + 15 &&
+            player.dy >= 0
+          ) {
+            player.y = plat.y - player.height;
+            player.dy = 0;
+            player.grounded = true;
+          }
+        }
 
-      player.dy += gravity;
-      player.x += player.dx;
-      player.y += player.dy;
-
-      // Platform collision (simple)
-      player.grounded = false;
-      for (const plat of platforms) {
-        if (
-          player.x + player.width > plat.x &&
-          player.x < plat.x + plat.width &&
-          player.y + player.height > plat.y &&
-          player.y + player.height < plat.y + plat.height + 15 && // allow small range to land
-          player.dy >= 0
-        ) {
-          player.y = plat.y - player.height;
+        if (player.y + player.height > platforms[0].y + platforms[0].height) {
+          player.y = platforms[0].y - player.height;
           player.dy = 0;
           player.grounded = true;
         }
+
+        cameraX = player.x + player.width / 2 - canvas.width / 2;
+        if (cameraX < 0) cameraX = 0;
+        if (cameraX > groundWidth - canvas.width) cameraX = groundWidth - canvas.width;
       }
 
-      // Prevent falling below ground platform
-      if (player.y + player.height > platforms[0].y + platforms[0].height) {
-        player.y = platforms[0].y - player.height;
-        player.dy = 0;
-        player.grounded = true;
-      }
-
-      // Camera follows player with bounds
-      cameraX = player.x + player.width / 2 - canvas.width / 2;
-      if (cameraX < 0) cameraX = 0;
-      if (cameraX > groundWidth - canvas.width) cameraX = groundWidth - canvas.width;
-    }
-
-    function checkCollisions() {
-      for (const bone of bones) {
-        if (
-          !bone.collected &&
-          player.x < bone.x + scale &&
-          player.x + player.width > bone.x &&
-          player.y < bone.y + scale &&
-          player.y + player.height > bone.y
-        ) {
-          bone.collected = true;
-          collectedBones++;
+      function checkCollisions() {
+        for (const bone of bones) {
+          if (
+            !bone.collected &&
+            player.x < bone.x + scale &&
+            player.x + player.width > bone.x &&
+            player.y < bone.y + scale &&
+            player.y + player.height > bone.y
+          ) {
+            bone.collected = true;
+            collectedBones++;
+          }
         }
-      }
 
-      for (const enemy of enemies) {
+        for (const enemy of enemies) {
+          if (
+            player.x < enemy.x + enemy.width &&
+            player.x + player.width > enemy.x &&
+            player.y < enemy.y + enemy.height &&
+            player.y + player.height > enemy.y
+          ) {
+            gameOver = true;
+            messageText = "You hit a dog! Restarting...";
+            messageTimer = 180;
+            submitScore(playerName, collectedBones);
+            setTimeout(() => location.reload(), 3000);
+          }
+        }
+
+        for (const bird of birds) {
+          if (
+            player.x < bird.x + bird.width &&
+            player.x + player.width > bird.x &&
+            player.y < bird.y + bird.height &&
+            player.y + player.height > bird.y
+          ) {
+            gameOver = true;
+            messageText = "You hit a bird! Restarting...";
+            messageTimer = 180;
+            submitScore(playerName, collectedBones);
+            setTimeout(() => location.reload(), 3000);
+          }
+        }
+
         if (
-          player.x < enemy.x + enemy.width &&
-          player.x + player.width > enemy.x &&
-          player.y < enemy.y + enemy.height &&
-          player.y + player.height > enemy.y
+          player.x < finishLine.x + finishLine.width &&
+          player.x + player.width > finishLine.x &&
+          player.y < finishLine.y + finishLine.height &&
+          player.y + player.height > finishLine.y
         ) {
           gameOver = true;
-          messageText = "You hit an enemy! Restarting...";
-          messageTimer = 180;
-          setTimeout(() => location.reload(), 3000);
+          messageText = "Tara is the best!";
+          messageTimer = 600;
+          submitScore(playerName, collectedBones);
+          setTimeout(() => location.reload(), 10000);
         }
       }
 
-      // Check finish line collision
-      if (
-        player.x < finishLine.x + finishLine.width &&
-        player.x + player.width > finishLine.x &&
-        player.y < finishLine.y + finishLine.height &&
-        player.y + player.height > finishLine.y
-      ) {
-        gameOver = true;
-        messageText = "Tara is the best!";
-        messageTimer = 600;
-        setTimeout(() => location.reload(), 10000);
-      }
-    }
-
-    function updateEnemies() {
-      for (const enemy of enemies) {
-        enemy.x += enemy.dx;
-        
-        enemy.moveCounter++;
-        if (enemy.moveCounter >= enemy.moveLimit) {
-          enemy.dx *= -1;         // flip direction
-          enemy.moveCounter = 0;  // reset counter
+      function updateEnemies() {
+        for (const enemy of enemies) {
+          enemy.x += enemy.dx;
+          enemy.moveCounter++;
+          if (enemy.moveCounter >= enemy.moveLimit) {
+            enemy.dx *= -1;
+            enemy.moveCounter = 0;
+          }
+          if (enemy.x < 0) {
+            enemy.x = 0;
+            enemy.dx *= -1;
+            enemy.moveCounter = 0;
+          } else if (enemy.x + enemy.width > platforms[0].width) {
+            enemy.x = platforms[0].width - enemy.width;
+            enemy.dx *= -1;
+            enemy.moveCounter = 0;
+          }
         }
-        
-        // Keep enemy inside ground platform bounds
-        if (enemy.x < 0) {
-          enemy.x = 0;
-          enemy.dx *= -1;
-          enemy.moveCounter = 0;
-        } else if (enemy.x + enemy.width > platforms[0].width) {
-          enemy.x = platforms[0].width - enemy.width;
-          enemy.dx *= -1;
-          enemy.moveCounter = 0;
+
+        for (const bird of birds) {
+          bird.x += bird.dx;
+          bird.moveCounter++;
+          if (bird.moveCounter >= bird.moveLimit) {
+            bird.dx *= -1;
+            bird.moveCounter = 0;
+          }
+          if (bird.x < bird.initialX - bird.rangeX) {
+            bird.x = bird.initialX - bird.rangeX;
+            bird.dx *= -1;
+            bird.moveCounter = 0;
+          } else if (bird.x + bird.width > bird.initialX + bird.rangeX) {
+            bird.x = bird.initialX + bird.rangeX - bird.width;
+            bird.dx *= -1;
+            bird.moveCounter = 0;
+          }
         }
       }
+
+      function drawPlatform(plat) {
+        ctx.fillStyle = "#228B22";
+        ctx.fillRect(plat.x - cameraX, plat.y, plat.width, plat.height);
+      }
+
+      function drawLeaderboard() {
+        if (highscores.length > 0) {
+          ctx.fillStyle = "yellow";
+          ctx.font = "20px Roboto";
+          ctx.fillText("High Scores", canvas.width / 2 - 50, 100);
+          ctx.font = "16px Roboto";
+          highscores.forEach((score, index) => {
+            ctx.fillText(
+              `${index + 1}. ${score.name}: ${score.score}`,
+              canvas.width / 2 - 100,
+              130 + index * 20
+            );
+          });
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (const plat of platforms) {
+          drawPlatform(plat);
+        }
+
+        for (const bone of bones) {
+          if (!bone.collected) drawBone(bone.x - cameraX, bone.y);
+        }
+
+        for (const enemy of enemies) {
+          drawEnemy(enemy.x - cameraX, enemy.y, enemy.dx < 0);
+        }
+
+        for (const bird of birds) {
+          drawBird(bird.x - cameraX, bird.y, bird.dx < 0);
+        }
+
+        drawFinish(finishLine.x - cameraX, finishLine.y);
+        drawCat(player.x - cameraX, player.y, player.direction === "left");
+
+        ctx.fillStyle = "#00c9ff";
+        ctx.font = "16px Roboto";
+        ctx.fillText(`Bones: ${collectedBones}`, 20, 30);
+
+        if (messageTimer > 0) {
+          ctx.fillStyle = "yellow";
+          ctx.font = "24px Roboto";
+          ctx.fillText(messageText, canvas.width / 2 - 100, 60);
+          messageTimer--;
+        }
+
+        if (gameOver) {
+          drawLeaderboard();
+        }
+      }
+
+      function loop() {
+        if (!gameOver && gameStarted) {
+          updatePlayer();
+          updateEnemies();
+          checkCollisions();
+          draw();
+          requestAnimationFrame(loop);
+        } else {
+          draw();
+        }
+      }
+
+      // Wait for scripts to load
+      const supabaseScript = document.querySelector('script[src*="supabase-js"]');
+      const md5Script = document.querySelector('script[src*="md5-js"]');
+      let scriptsLoaded = 0;
+
+      function checkScriptsLoaded() {
+        scriptsLoaded++;
+        if (scriptsLoaded === 2) {
+          initGame();
+        }
+      }
+
+      supabaseScript.addEventListener('load', checkScriptsLoaded);
+      md5Script.addEventListener('load', checkScriptsLoaded);
+
+      // Fallback in case scripts are already loaded
+      if (supabaseScript.complete) checkScriptsLoaded();
+      if (md5Script.complete) checkScriptsLoaded();
     }
-
-    function drawPlatform(plat) {
-      ctx.fillStyle = "#228B22";
-      ctx.fillRect(plat.x - cameraX, plat.y, plat.width, plat.height);
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw all platforms
-      for (const plat of platforms) {
-        drawPlatform(plat);
-      }
-
-      // Draw bones on platforms
-      for (const bone of bones) {
-        if (!bone.collected) drawBone(bone.x - cameraX, bone.y);
-      }
-
-      // Draw enemies
-      for (const enemy of enemies) {
-        drawEnemy(enemy.x - cameraX, enemy.y, enemy.dx < 0);
-      }
-
-      // Draw finish line
-      drawFinish(finishLine.x - cameraX, finishLine.y);
-
-      // Draw player
-      drawCat(player.x - cameraX, player.y, player.direction === "left");
-
-      ctx.fillStyle = "#00c9ff";
-      ctx.font = "16px Roboto";
-      ctx.fillText(`Bones: ${collectedBones}`, 20, 30);
-
-      if (messageTimer > 0) {
-        ctx.fillStyle = "yellow";
-        ctx.font = "24px Roboto";
-        ctx.fillText(messageText, canvas.width / 2 - 100, 60);
-        messageTimer--;
-      }
-    }
-
-    function loop() {
-      if (!gameOver) {
-        updatePlayer();
-        updateEnemies();
-        checkCollisions();
-        draw();
-        requestAnimationFrame(loop);
-      } else {
-        draw();
-      }
-    }
-
-    loop();
   </script>
 </body>
 </html>
