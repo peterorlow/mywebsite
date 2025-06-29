@@ -1,903 +1,632 @@
-<!DOCTYPE html>
-<html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>Maze Shooter - No Map, Unlimited Ammo</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: 'Courier New', monospace;
-        }
-        canvas {
-            display: block;
-            image-rendering: pixelated;
-            width: 800px;
-            height: 600px;
-        }
-        #ui {
-            position: absolute;
-            color: white;
-            font-family: monospace;
-            padding: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            border: 2px solid #8B0000;
-            border-radius: 5px;
-            bottom: 20px;
-            left: 20px;
-        }
-        #startScreen {
-            position: absolute;
-            color: white;
-            background-color: rgba(0, 0, 0, 0.8);
-            padding: 20px;
-            border: 3px solid #8B0000;
-            border-radius: 10px;
-            text-align: center;
-            max-width: 400px;
-        }
-        button {
-            background-color: #8B0000;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            margin: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 18px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #A00000;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Peter Orlowski</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    :root {
+      --primary-color: #ffffff;
+      --accent-color: #00c9ff;
+      --background-gradient: linear-gradient(to bottom right, #0f2027, #203a43, #2c5364);
+    }
+    body {
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background: var(--background-gradient);
+      color: var(--primary-color);
+      text-align: center;
+      overflow-x: hidden;
+    }
+    header, footer, section {
+      padding: 40px;
+    }
+    canvas {
+      background: #0077ff;
+      display: block;
+      margin: 0 auto;
+      border: 2px solid #0044bb;
+    }
+    .controls {
+      margin: 20px auto;
+      font-size: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      align-items: center;
+    }
+    .controls button {
+      background: #0044bb;
+      border: 2px solid var(--accent-color);
+      color: var(--accent-color);
+      padding: 15px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 28px;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    .controls button i {
+      font-size: 36px; /* Increased icon size for larger arrows */
+    }
+    .controls button:hover {
+      background: #0055cc;
+    }
+    .controls button:active {
+      background: #003399;
+    }
+  </style>
 </head>
 <body>
-    <div id="startScreen">
-        <h1>MAZE SHOOTER</h1>
-        <p>Find the exit to complete the maze!</p>
-        <p>WASD: Move | Arrows: Look | SPACE: Shoot</p>
-        <button id="startButton">START GAME</button>
-    </div>
-    <canvas id="gameCanvas" style="display:none"></canvas>
-    <div id="ui" style="display:none">
-        HEALTH: 100 | AMMO: ∞ | SCORE: 00000
-    </div>
+  <header>
+    <h1>Peter Orlowski</h1>
+    <p></p>
+  </header>
+  <canvas id="gameCanvas" width="960" height="320"></canvas>
+  <div class="controls">
+    <button id="leftBtn"><i class="fas fa-arrow-left"></i> Left</button>
+    <button id="rightBtn"><i class="fas fa-arrow-right"></i> Right</button>
+    <button id="jumpBtn"><i class="fas fa-arrow-up"></i> Jump</button>
+  </div>
+  <footer>© 2025 Peter Orlowski</footer>
 
-    <script>
-        // Game constants
-        const CELL_SIZE = 64;
-        const FOV = Math.PI / 3; // 60 degrees
-        const HALF_FOV = FOV / 2;
-        const NUM_RAYS = 320;
-        const MAX_DEPTH = 20;
-        const WALK_SPEED = 3;
-        const ROT_SPEED = 0.05;
-        const MAZE_SIZE = 15; // 15x15 maze
-        const NUM_ENEMIES = 5;
-        const SHOTS_TO_KILL = 3;
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scale = 2;
 
-        // Game canvas setup
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 800;
-        canvas.height = 600;
+    const finishSprite = [
+      "bbb.......................................",
+      "bgbbbb...................................",
+      "bgbrrrbbb................................",
+      "bgbrrrrrrrbbb............................",
+      "bgbrrrrrrrrrbbb..........................",
+      "bgbrrrrrrrrrrrrbbbb......................",
+      "bgbrrrrrrrrrrrrrrrrbbb...................",
+      "bgbrrrrrrrrrrrrrrrrrrrbbb................",
+      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbrrrrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbwwwrrrrrrrrrrrrrrrrrrrb...............",
+      "bgbwwwwwwrrrrrrrrrrrrrrrrb...............",
+      "bgbwwwwwwwwwrrrrrrrrrrrrrb...............",
+      "bgbwwwwwwwwwwwwrrrrrrrrrrb...............",
+      "bgbwwwwwwwwwwwwwwwwrrrrrrb...............",
+      "bgbwwwwwwwwwwwwwwwwwwwrrrb...............",
+      "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
+      "bgbwwwwwwwwwwwwwwwwwwwwwwb...............",
+      "bgbbbbwwwwwwwwwwwwwwwwwwwb...............",
+      "bgb...bbbwwwwwwwwwwwwwwwwb...............",
+      "bgb......bbbwwwwwwwwwwwwwb...............",
+      "bgb..........bbbwwwwwwwwwb...............",
+      "bgb.............bbbwwwwwwb...............",
+      "bgb................bbbwwwb...............",
+      "bgb...................bbbb...............",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................",
+      "bgb......................................"
+    ];
 
-        // Game state
-        let map = [];
-        let exitPosition = { x: 0, y: 0 };
-        let gameStarted = false;
-        let enemies = [];
-        let bullets = [];
+    const finishColorMap = {
+      b: '#000000',
+      g: '#808080',
+      w: '#ff0000',
+      r: '#ffffff',
+      '.': null
+    };
 
-        // Player position and angle
-        const player = {
-            x: CELL_SIZE * 1.5,
-            y: CELL_SIZE * 1.5,
-            angle: Math.PI / 4,
-            health: 100,
-            score: 0
-        };
-
-        // Keyboard state
-        const keys = {
-            w: false,
-            a: false,
-            s: false,
-            d: false,
-            ArrowLeft: false,
-            ArrowRight: false,
-            space: false
-        };
-
-        // Texture data - generated procedurally
-        const textureSize = 64;
-        let textureData = null;
-        let enemyTexture = null;
-        let bulletTexture = null;
-
-        // Generate procedural brick texture
-        function generateBrickTexture() {
-            const textureCanvas = document.createElement('canvas');
-            textureCanvas.width = textureSize;
-            textureCanvas.height = textureSize;
-            const textureCtx = textureCanvas.getContext('2d');
-            
-            // Brick color
-            textureCtx.fillStyle = '#8B0000';
-            textureCtx.fillRect(0, 0, textureSize, textureSize);
-            
-            // Draw brick pattern
-            textureCtx.fillStyle = '#A52A2A';
-            for (let y = 0; y < textureSize; y += 8) {
-                for (let x = 0; x < textureSize; x += 16) {
-                    textureCtx.fillRect(x + (y % 16 === 0 ? 0 : 8), y, 14, 6);
-                }
-            }
-            
-            // Add some noise for texture
-            const imageData = textureCtx.getImageData(0, 0, textureSize, textureSize);
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                // Add slight color variation
-                imageData.data[i] += Math.floor(Math.random() * 10) - 5;   // R
-                imageData.data[i+1] += Math.floor(Math.random() * 10) - 5; // G
-                imageData.data[i+2] += Math.floor(Math.random() * 10) - 5; // B
-            }
-            textureCtx.putImageData(imageData, 0, 0);
-            
-            return textureCtx.getImageData(0, 0, textureSize, textureSize).data;
+    function drawFinish(x, y) {
+      for (let row = 0; row < finishSprite.length; row++) {
+        for (let col = 0; col < finishSprite[row].length; col++) {
+          const pixel = finishSprite[row][col];
+          const color = finishColorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x + col * scale, y + row * scale, scale, scale);
+          }
         }
+      }
+    }
 
-        // Generate enemy texture
-        function generateEnemyTexture() {
-            const textureCanvas = document.createElement('canvas');
-            textureCanvas.width = textureSize;
-            textureCanvas.height = textureSize;
-            const textureCtx = textureCanvas.getContext('2d');
-            
-            // Enemy body
-            textureCtx.fillStyle = '#FF0000';
-            textureCtx.beginPath();
-            textureCtx.arc(textureSize/2, textureSize/2, textureSize/2 - 5, 0, Math.PI * 2);
-            textureCtx.fill();
-            
-            // Enemy eyes
-            textureCtx.fillStyle = '#FFFFFF';
-            textureCtx.beginPath();
-            textureCtx.arc(textureSize/2 - 10, textureSize/2 - 5, 5, 0, Math.PI * 2);
-            textureCtx.arc(textureSize/2 + 10, textureSize/2 - 5, 5, 0, Math.PI * 2);
-            textureCtx.fill();
-            
-            textureCtx.fillStyle = '#000000';
-            textureCtx.beginPath();
-            textureCtx.arc(textureSize/2 - 10, textureSize/2 - 5, 2, 0, Math.PI * 2);
-            textureCtx.arc(textureSize/2 + 10, textureSize/2 - 5, 2, 0, Math.PI * 2);
-            textureCtx.fill();
-            
-            return textureCtx.getImageData(0, 0, textureSize, textureSize).data;
+    const boneSprite = [
+      "..bbb...................bbb....",
+      ".bGGGB.................BGGGb....",
+      "bGGWWWb...............bGWWWGb...",
+      "bGWWWWGbbbbbbbbbbbbbbWWWWWWGb...",
+      ".bWWWWWGGGGGGGGGGGGGWWWWWWb....",
+      "..bWWWWWWWWWWWWWWWWWWWWWWb.....",
+      "..bWWWWWWWWWWWWWWWWWWWWWWb....",
+      ".bWWWWWWWWWWWWWWWWWWWWWWWWb...",
+      "bGWWWWWbbbbbbbbbbbbbbWWWWWWb..",
+      "bGGWWWb..............bWWWWWb..",
+      ".bGGGb................bGGGb..",
+      "..bbb..................bbb..."
+    ];
+
+    const boneColorMap = {
+      b: '#000000',
+      G: '#888888',
+      W: '#ffffff',
+      '.': null
+    };
+
+    function drawBone(x, y) {
+      for (let row = 0; row < boneSprite.length; row++) {
+        for (let col = 0; col < boneSprite[row].length; col++) {
+          const pixel = boneSprite[row][col];
+          const color = boneColorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x + col * (scale / 2), y + row * (scale / 2), scale / 2, scale / 2);
+          }
         }
+      }
+    }
 
-        // Generate bullet texture
-        function generateBulletTexture() {
-            const textureCanvas = document.createElement('canvas');
-            textureCanvas.width = textureSize;
-            textureCanvas.height = textureSize;
-            const textureCtx = textureCanvas.getContext('2d');
-            
-            // Bullet shape
-            textureCtx.fillStyle = '#FFD700';
-            textureCtx.beginPath();
-            textureCtx.arc(textureSize/2, textureSize/2, textureSize/4, 0, Math.PI * 2);
-            textureCtx.fill();
-            
-            // Add shine
-            textureCtx.fillStyle = '#FFFFFF';
-            textureCtx.beginPath();
-            textureCtx.arc(textureSize/2 + 5, textureSize/2 - 5, 3, 0, Math.PI * 2);
-            textureCtx.fill();
-            
-            return textureCtx.getImageData(0, 0, textureSize, textureSize).data;
+    const catSprite = [
+      "...........................",
+      "...........................",
+      "...........................",
+      "...........................",
+      "...........................",
+      ".............BB........BB..",
+      ".............BGB......BGB..",
+      ".............BGGB....BGGB..",
+      ".............BGGGBBBBGGGB..",
+      "...BB........BGGGGGGGGGGB..",
+      "..BGGB.......BGGGGGGGGGGB..",
+      ".BGGGB.......BGGGGGGGGGGB..",
+      "BGGBB........BGGBGGGGBGGB..",
+      "BGB..........BGBGBGGBGBGB..",
+      "BGB..........BPPGGGGGGPPB..",
+      "BGB.....BBBBBGBGGGGGGGGB...",
+      "BGB....BGGGGGGGBGGGGGGB....",
+      "BGGB..BGGGBBGGGGBBBBBB.....",
+      ".BGGBBBGGGGGBGGGGGGGB......",
+      "..BGGGBGGGGGBGGGGGGBBB.....",
+      "...BBBBGGGGGGBGGGGGGGGB....",
+      ".......BBBBBBBBBBBBBBB....."
+    ];
+
+    const catColorMap = {
+      B: "#000000",
+      G: "#888888",
+      P: "#FF69B4",
+      ".": null,
+    };
+
+    function drawCat(x, y, flipped) {
+      ctx.save();
+      if (flipped) {
+        ctx.translate(x + catSprite[0].length * scale, y);
+        ctx.scale(-1, 1);
+        x = 0;
+        y = 0;
+      } else {
+        ctx.translate(x, y);
+        x = 0;
+        y = 0;
+      }
+      for (let row = 0; row < catSprite.length; row++) {
+        for (let col = 0; col < catSprite[row].length; col++) {
+          const pixel = catSprite[row][col];
+          const color = catColorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(col * scale, row * scale, scale, scale);
+          }
         }
+      }
+      ctx.restore();
+    }
 
-        // Initialize game
-        function initGame() {
-            // Reset keyboard state to prevent auto-walking
-            for (let key in keys) {
-                keys[key] = false;
-            }
-            
-            // Generate textures
-            textureData = generateBrickTexture();
-            enemyTexture = generateEnemyTexture();
-            bulletTexture = generateBulletTexture();
-            
-            // Reset game state
-            enemies = [];
-            bullets = [];
-            player.health = 100;
-            player.score = 0;
-            
-            generateMaze();
-            placePlayerInMaze();
-            spawnEnemies();
-            gameStarted = true;
-            
-            // Show game elements
-            document.getElementById('startScreen').style.display = 'none';
-            document.getElementById('gameCanvas').style.display = 'block';
-            document.getElementById('ui').style.display = 'block';
-            
-            // Start game loop
-            gameLoop();
+    const enemySpriteRight = [
+      "...............BBB........BB.",
+      "...............BRRB......BRB..",
+      "...............BWWRBBBBBBRRB.",
+      "...............BBWRBRRRRRBBB..",
+      ".BBB............BWWWBRRWWWB",
+      "BWB.............BRRWBRRBWBBB..",
+      "BWB.............BRRRRRWWWWBBB.",
+      "BWWB.............BRWWWWWWWBWB..",
+      ".BWWBBBBbBBBBBBBBBRBWWWWWWBWB.",
+      "..BBRRRRRRRRRRRRRRWWWBBBBBBB.",
+      "...BRRRRRRRRRRRRWWWWWWWWWWB",     
+      "...BWRRRRRRRRRWWWBBBBBBBBB",
+      "...BWRRRRRRRRWWWB.",
+      "...BWWRRRRRRRWWWB..",
+      "...BWWWRRRRRRWWWB.....",
+      "...BWWWWRRRRWWWBB....",
+      "...BWWBBBBBBWWBWB..",
+      "...BWWBWB..BWWBWB....",
+      "...BWWBWB..BWWBWB..",
+      "...BWWWBWB.BWWWBWB..",
+      "....BBBBBB..BBBBBB."
+    ];
+
+    const enemyColorMap = {
+      B: "#000000",
+      R: "#8B4513",
+      W: "#ffffff",
+      ".": null,
+    };
+
+    function drawEnemy(x, y, flipped) {
+      ctx.save();
+      if (flipped) {
+        ctx.translate(x + enemySpriteRight[0].length * scale, y);
+        ctx.scale(-1, 1);
+        x = 0;
+        y = 0;
+      } else {
+        ctx.translate(x, y);
+        x = 0;
+        y = 0;
+      }
+      for (let row = 0; row < enemySpriteRight.length; row++) {
+        for (let col = 0; col < enemySpriteRight[row].length; col++) {
+          const pixel = enemySpriteRight[row][col];
+          const color = enemyColorMap[pixel];
+          if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(col * scale, row * scale, scale, scale);
+          }
         }
+      }
+      ctx.restore();
+    }
 
-        // Spawn enemies in the maze
-        function spawnEnemies() {
-            for (let i = 0; i < NUM_ENEMIES; i++) {
-                let x, y;
-                do {
-                    x = 1 + Math.floor(Math.random() * (MAZE_SIZE - 2));
-                    y = 1 + Math.floor(Math.random() * (MAZE_SIZE - 2));
-                } while (map[y][x] !== 0 || 
-                       Math.abs(x - Math.floor(player.x / CELL_SIZE)) < 3 ||
-                       Math.abs(y - Math.floor(player.y / CELL_SIZE)) < 3);
-                
-                enemies.push({
-                    x: (x + 0.5) * CELL_SIZE,
-                    y: (y + 0.5) * CELL_SIZE,
-                    health: SHOTS_TO_KILL,
-                    angle: Math.random() * Math.PI * 2,
-                    speed: 0.5 + Math.random() * 0.5
-                });
-            }
-        }
+    // Random ground width between 20000 and 21000 pixels
+    const groundWidth = 20000 + Math.random() * 1000;
 
-        // Generate a random maze with guaranteed path to exit
-        function generateMaze() {
-            // Initialize filled maze with borders
-            map = Array(MAZE_SIZE).fill().map(() => Array(MAZE_SIZE).fill(1));
-            
-            // Start from a random cell
-            const startX = 1 + Math.floor(Math.random() * (MAZE_SIZE - 2));
-            const startY = 1 + Math.floor(Math.random() * (MAZE_SIZE - 2));
-            
-            // Create a stack for DFS and visited cells
-            const stack = [[startX, startY]];
-            const visited = Array(MAZE_SIZE).fill().map(() => Array(MAZE_SIZE).fill(false));
-            visited[startY][startX] = true;
-            map[startY][startX] = 0;
-            
-            // Directions: up, right, down, left
-            const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-            
-            while (stack.length > 0) {
-                const [x, y] = stack[stack.length - 1];
-                const shuffledDirections = directions.sort(() => Math.random() - 0.5);
-                
-                let moved = false;
-                
-                for (const [dx, dy] of shuffledDirections) {
-                    const nx = x + dx * 2; // Move 2 cells to carve paths
-                    const ny = y + dy * 2;
-                    
-                    if (nx > 0 && nx < MAZE_SIZE - 1 && ny > 0 && ny < MAZE_SIZE - 1 && !visited[ny][nx]) {
-                        // Carve path
-                        map[y + dy][x + dx] = 0;
-                        map[ny][nx] = 0;
-                        visited[ny][nx] = true;
-                        stack.push([nx, ny]);
-                        moved = true;
-                        break;
-                    }
-                }
-                
-                if (!moved) {
-                    stack.pop();
-                }
-            }
-            
-            // Place exit at the farthest point from start with guaranteed path
-            exitPosition = findFarthestPoint(startX, startY);
-            map[exitPosition.y][exitPosition.x] = 2;
-            
-            // Ensure there's always a path by verifying with pathfinding
-            ensurePathToExit(startX, startY);
-        }
+    // Ground platform with dynamic width
+    const platforms = [
+      { x: 0, y: 280, width: groundWidth, height: 40 }
+    ];
 
-        // Find farthest point from start for exit placement
-        function findFarthestPoint(startX, startY) {
-            let maxDist = 0;
-            let farthest = { x: startX, y: startY };
-            const visited = Array(MAZE_SIZE).fill().map(() => Array(MAZE_SIZE).fill(false));
-            const queue = [[startX, startY, 0]];
-            visited[startY][startX] = true;
-            
-            while (queue.length > 0) {
-                const [x, y, dist] = queue.shift();
-                
-                if (dist > maxDist && map[y][x] === 0) {
-                    maxDist = dist;
-                    farthest = { x, y };
-                }
-                
-                // Check neighbors
-                const neighbors = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-                for (const [dx, dy] of neighbors) {
-                    const nx = x + dx;
-                    const ny = y + dy;
-                    if (nx >= 0 && nx < MAZE_SIZE && ny >= 0 && ny < MAZE_SIZE && 
-                        !visited[ny][nx] && map[ny][nx] !== 1) {
-                        visited[ny][nx] = true;
-                        queue.push([nx, ny, dist + 1]);
-                    }
-                }
-            }
-            
-            return farthest;
-        }
+    let lastPlatformRightEdge = 100;  // start position for first platform
 
-        // Ensure there's a path from start to exit by removing blocking walls
-        function ensurePathToExit(startX, startY) {
-            const path = findPath(startX, startY, exitPosition.x, exitPosition.y);
-            if (!path) {
-                // If no path exists, remove walls along the straight line path
-                const dx = exitPosition.x - startX;
-                const dy = exitPosition.y - startY;
-                const steps = Math.max(Math.abs(dx), Math.abs(dy));
-                
-                for (let i = 0; i <= steps; i++) {
-                    const x = Math.floor(startX + (dx * i) / steps);
-                    const y = Math.floor(startY + (dy * i) / steps);
-                    if (map[y][x] === 1) {
-                        map[y][x] = 0;
-                    }
-                    // Also clear adjacent cells to ensure walkable path
-                    if (x > 0 && map[y][x-1] === 1) map[y][x-1] = 0;
-                    if (x < MAZE_SIZE-1 && map[y][x+1] === 1) map[y][x+1] = 0;
-                    if (y > 0 && map[y-1][x] === 1) map[y-1][x] = 0;
-                    if (y < MAZE_SIZE-1 && map[y+1][x] === 1) map[y+1][x] = 0;
-                }
-            }
-        }
+    for (let i = 0; i < 100; i++) {
+      // Random gap between 111 and 161 pixels from last platform's right edge
+      const gap = 111 + Math.random() * 50;
 
-        // A* pathfinding algorithm to verify path exists
-        function findPath(startX, startY, targetX, targetY) {
-            const openSet = [{x: startX, y: startY, g: 0, h: heuristic(startX, startY, targetX, targetY)}];
-            openSet[0].f = openSet[0].g + openSet[0].h;
-            const closedSet = new Set();
-            const cameFrom = {};
-            const gScore = Array(MAZE_SIZE).fill().map(() => Array(MAZE_SIZE).fill(Infinity));
-            gScore[startY][startX] = 0;
-            
-            while (openSet.length > 0) {
-                openSet.sort((a, b) => a.f - b.f);
-                const current = openSet.shift();
-                
-                if (current.x === targetX && current.y === targetY) {
-                    // Reconstruct path
-                    const path = [];
-                    let node = current;
-                    while (node) {
-                        path.push(node);
-                        node = cameFrom[`${node.x},${node.y}`];
-                    }
-                    return path.reverse();
-                }
-                
-                closedSet.add(`${current.x},${current.y}`);
-                
-                const neighbors = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-                for (const [dx, dy] of neighbors) {
-                    const nx = current.x + dx;
-                    const ny = current.y + dy;
-                    
-                    if (nx < 0 || nx >= MAZE_SIZE || ny < 0 || ny >= MAZE_SIZE || 
-                        map[ny][nx] === 1 || closedSet.has(`${nx},${ny}`)) {
-                        continue;
-                    }
-                    
-                    const tentativeG = gScore[current.y][current.x] + 1;
-                    if (tentativeG < gScore[ny][nx]) {
-                        cameFrom[`${nx},${ny}`] = current;
-                        gScore[ny][nx] = tentativeG;
-                        const h = heuristic(nx, ny, targetX, targetY);
-                        const f = tentativeG + h;
-                        
-                        const existing = openSet.find(n => n.x === nx && n.y === ny);
-                        if (!existing) {
-                            openSet.push({x: nx, y: ny, g: tentativeG, h, f});
-                        } else {
-                            existing.g = tentativeG;
-                            existing.h = h;
-                            existing.f = f;
-                        }
-                    }
-                }
-            }
-            
-            return null; // No path found
-        }
+      // Random width between 20 and 120
+      const width = 20 + Math.random() * 100;
 
-        // Heuristic function for A*
-        function heuristic(x1, y1, x2, y2) {
-            return Math.abs(x1 - x2) + Math.abs(y1 - y2); // Manhattan distance
-        }
+      const x = lastPlatformRightEdge + gap;
 
-        // Place player in a valid starting position
-        function placePlayerInMaze() {
-            // Find a position with guaranteed path to exit
-            let startX, startY;
-            do {
-                startX = 1 + Math.floor(Math.random() * (MAZE_SIZE - 2));
-                startY = 1 + Math.floor(Math.random() * (MAZE_SIZE - 2));
-            } while (map[startY][startX] !== 0 || 
-                   !findPath(startX, startY, exitPosition.x, exitPosition.y) ||
-                   (Math.abs(startX - exitPosition.x) < 5 && 
-                    Math.abs(startY - exitPosition.y) < 5));
-            
-            player.x = (startX + 0.5) * CELL_SIZE;
-            player.y = (startY + 0.5) * CELL_SIZE;
-            player.angle = Math.random() * Math.PI * 2;
-        }
+      // Random y between 120 and 240 (floating platforms)
+      const y = 120 + Math.random() * 120;
 
-        // Event listeners for keyboard
-        document.addEventListener('keydown', (e) => {
-            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
-            if (e.key === ' ') keys.space = true;
+      platforms.push({ x, y, width, height: 15 });
+
+      lastPlatformRightEdge = x + width; // update right edge for next platform
+    }
+
+    // Bones - one on each platform centered horizontally
+    const bones = [];
+
+    platforms.forEach(plat => {
+      // Determine how many bones to place per platform
+      // For example, one bone every 1500 pixels, minimum 1 bone per platform
+      const bonesCount = Math.max(1, Math.floor(plat.width / 1500));
+      
+      for (let i = 0; i < bonesCount; i++) {
+        const x = plat.x + (i + 0.5) * (plat.width / bonesCount) - (122 * (scale / 2)); // spread evenly on platform
+        const y = plat.y - 25; // 25px above platform
+        
+        bones.push({
+          x,
+          y,
+          collected: false
         });
+      }
+    });
 
-        document.addEventListener('keyup', (e) => {
-            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
-            if (e.key === ' ') keys.space = false;
-        });
+    const enemies = [];
+    const numberOfDogs = 100;
+    const spacing = 300;  // space between each dog
 
-        // Start button
-        document.getElementById('startButton').addEventListener('click', initGame);
+    for (let i = 0; i < numberOfDogs; i++) {
+      enemies.push({
+        x: 400 + i * spacing,
+        y: platforms[0].y - enemySpriteRight.length * scale,
+        dx: i % 2 === 0 ? 1 : -1,  // alternate movement directions
+        width: enemySpriteRight[0].length * scale,
+        height: enemySpriteRight.length * scale,
+        moveCounter: 0,
+        moveLimit: 60  // Number of frames before changing direction
+      });
+    }
 
-        // Get pixel from procedural texture
-        function getTexturePixel(x, y, texture) {
-            x = Math.max(0, Math.min(textureSize - 1, Math.floor(x)));
-            y = Math.max(0, Math.min(textureSize - 1, Math.floor(y)));
-            
-            const i = (y * textureSize + x) * 4;
-            return {
-                r: texture[i],
-                g: texture[i + 1],
-                b: texture[i + 2],
-                a: texture[i + 3]
-            };
+    // Finish line near right edge of ground
+    const finishLine = {
+      x: groundWidth - finishSprite[0].length * scale - 50,
+      y: platforms[0].y - finishSprite.length * scale,
+      width: finishSprite[0].length * scale,
+      height: finishSprite.length * scale,
+    };
+
+    // Player starting position remains near left side
+    const player = {
+      x: 50,
+      y: platforms[0].y - catSprite.length * scale,
+      dx: 0,
+      dy: 0,
+      speed: 3,
+      jumpForce: 18,
+      width: catSprite[0].length * scale,
+      height: catSprite.length * scale,
+      grounded: false,
+      direction: "right"
+    };
+
+    const gravity = 0.6;
+
+    const keys = { left: false, right: false, up: false };
+
+    // Keyboard controls
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "ArrowLeft") keys.left = true;
+      if (e.code === "ArrowRight") keys.right = true;
+      if (e.code === "Space" || e.code === "ArrowUp") keys.up = true;
+    });
+    document.addEventListener("keyup", (e) => {
+      if (e.code === "ArrowLeft") keys.left = false;
+      if (e.code === "ArrowRight") keys.right = false;
+      if (e.code === "Space" || e.code === "ArrowUp") keys.up = false;
+    });
+
+    // Button controls
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+    const jumpBtn = document.getElementById("jumpBtn");
+
+    leftBtn.addEventListener("mousedown", () => { keys.left = true; });
+    leftBtn.addEventListener("mouseup", () => { keys.left = false; });
+    leftBtn.addEventListener("touchstart", (e) => { e.preventDefault(); keys.left = true; });
+    leftBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.left = false; });
+
+    rightBtn.addEventListener("mousedown", () => { keys.right = true; });
+    rightBtn.addEventListener("mouseup", () => { keys.right = false; });
+    rightBtn.addEventListener("touchstart", (e) => { e.preventDefault(); keys.right = true; });
+    rightBtn.addEventListener("touchend", (e) => { e.preventDefault(); keys.right = false; });
+
+    jumpBtn.addEventListener("click", () => { if (player.grounded) keys.up = true; });
+    jumpBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (player.grounded) keys.up = true; });
+
+    let collectedBones = 0;
+    let messageText = "";
+    let messageTimer = 0;
+    let gameOver = false;
+
+    let cameraX = 0;
+
+    function updatePlayer() {
+      if (keys.left) {
+        player.dx = -player.speed;
+        player.direction = "left";
+      } else if (keys.right) {
+        player.dx = player.speed;
+        player.direction = "right";
+      } else {
+        player.dx = 0;
+      }
+
+      if (keys.up && player.grounded) {
+        player.dy = -player.jumpForce;
+        player.grounded = false;
+        keys.up = false; // Reset jump to prevent holding
+      }
+
+      player.dy += gravity;
+      player.x += player.dx;
+      player.y += player.dy;
+
+      // Platform collision (simple)
+      player.grounded = false;
+      for (const plat of platforms) {
+        if (
+          player.x + player.width > plat.x &&
+          player.x < plat.x + plat.width &&
+          player.y + player.height > plat.y &&
+          player.y + player.height < plat.y + plat.height + 15 && // allow small range to land
+          player.dy >= 0
+        ) {
+          player.y = plat.y - player.height;
+          player.dy = 0;
+          player.grounded = true;
         }
+      }
 
-        // Game loop
-        function gameLoop() {
-            if (!gameStarted) return;
-            
-            update();
-            render();
-            requestAnimationFrame(gameLoop);
+      // Prevent falling below ground platform
+      if (player.y + player.height > platforms[0].y + platforms[0].height) {
+        player.y = platforms[0].y - player.height;
+        player.dy = 0;
+        player.grounded = true;
+      }
+
+      // Camera follows player with bounds
+      cameraX = player.x + player.width / 2 - canvas.width / 2;
+      if (cameraX < 0) cameraX = 0;
+      if (cameraX > groundWidth - canvas.width) cameraX = groundWidth - canvas.width;
+    }
+
+    function checkCollisions() {
+      for (const bone of bones) {
+        if (
+          !bone.collected &&
+          player.x < bone.x + scale &&
+          player.x + player.width > bone.x &&
+          player.y < bone.y + scale &&
+          player.y + player.height > bone.y
+        ) {
+          bone.collected = true;
+          collectedBones++;
         }
+      }
 
-        // Update game state
-        function update() {
-            // Player movement
-            const moveX = Math.cos(player.angle) * WALK_SPEED;
-            const moveY = Math.sin(player.angle) * WALK_SPEED;
-
-            if (keys.w) {
-                const newX = player.x + moveX;
-                const newY = player.y + moveY;
-                if (!isWall(newX, newY)) {
-                    player.x = newX;
-                    player.y = newY;
-                }
-            }
-            if (keys.s) {
-                const newX = player.x - moveX;
-                const newY = player.y - moveY;
-                if (!isWall(newX, newY)) {
-                    player.x = newX;
-                    player.y = newY;
-                }
-            }
-            if (keys.a) {
-                const strafeX = Math.cos(player.angle - Math.PI/2) * WALK_SPEED;
-                const strafeY = Math.sin(player.angle - Math.PI/2) * WALK_SPEED;
-                const newX = player.x + strafeX;
-                const newY = player.y + strafeY;
-                if (!isWall(newX, newY)) {
-                    player.x = newX;
-                    player.y = newY;
-                }
-            }
-            if (keys.d) {
-                const strafeX = Math.cos(player.angle + Math.PI/2) * WALK_SPEED;
-                const strafeY = Math.sin(player.angle + Math.PI/2) * WALK_SPEED;
-                const newX = player.x + strafeX;
-                const newY = player.y + strafeY;
-                if (!isWall(newX, newY)) {
-                    player.x = newX;
-                    player.y = newY;
-                }
-            }
-            if (keys.ArrowLeft) player.angle -= ROT_SPEED;
-            if (keys.ArrowRight) player.angle += ROT_SPEED;
-            if (keys.space) shoot();
-            
-            // Update bullets
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                bullets[i].x += bullets[i].dx;
-                bullets[i].y += bullets[i].dy;
-                
-                // Remove bullets that hit walls or go out of bounds
-                if (isWall(bullets[i].x, bullets[i].y) || 
-                    bullets[i].x < 0 || bullets[i].x > MAZE_SIZE * CELL_SIZE ||
-                    bullets[i].y < 0 || bullets[i].y > MAZE_SIZE * CELL_SIZE) {
-                    bullets.splice(i, 1);
-                    continue;
-                }
-                
-                // Check for bullet-enemy collisions
-                for (let j = enemies.length - 1; j >= 0; j--) {
-                    const dist = Math.sqrt(
-                        Math.pow(bullets[i].x - enemies[j].x, 2) + 
-                        Math.pow(bullets[i].y - enemies[j].y, 2)
-                    );
-                    
-                    if (dist < CELL_SIZE / 2) {
-                        enemies[j].health--;
-                        player.score += 10;
-                        bullets.splice(i, 1);
-                        
-                        if (enemies[j].health <= 0) {
-                            player.score += 50;
-                            enemies.splice(j, 1);
-                        }
-                        break;
-                    }
-                }
-            }
-            
-            // Update enemies
-            for (let i = 0; i < enemies.length; i++) {
-                // Simple AI: move toward player
-                const dx = player.x - enemies[i].x;
-                const dy = player.y - enemies[i].y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist > 0) {
-                    const moveX = (dx / dist) * enemies[i].speed;
-                    const moveY = (dy / dist) * enemies[i].speed;
-                    
-                    if (!isWall(enemies[i].x + moveX, enemies[i].y + moveY)) {
-                        enemies[i].x += moveX;
-                        enemies[i].y += moveY;
-                    }
-                    
-                    enemies[i].angle = Math.atan2(dy, dx);
-                }
-                
-                // Check for enemy-player collision
-                if (dist < CELL_SIZE / 2) {
-                    player.health -= 0.5;
-                    if (player.health <= 0) {
-                        alert(`GAME OVER! Final Score: ${player.score}`);
-                        initGame();
-                        return;
-                    }
-                }
-            }
-            
-            // Check if player reached exit
-            const exitCellX = Math.floor(player.x / CELL_SIZE);
-            const exitCellY = Math.floor(player.y / CELL_SIZE);
-            if (exitCellX >= 0 && exitCellX < MAZE_SIZE && 
-                exitCellY >= 0 && exitCellY < MAZE_SIZE && 
-                map[exitCellY][exitCellX] === 2) {
-                player.score += 1000;
-                alert(`MAZE COMPLETED! Final Score: ${player.score}`);
-                initGame(); // Start new maze
-            }
-            
-            // Update UI
-            document.getElementById('ui').innerHTML = 
-                `HEALTH: ${Math.floor(player.health)} | AMMO: ∞ | SCORE: ${player.score.toString().padStart(5, '0')}`;
+      for (const enemy of enemies) {
+        if (
+          player.x < enemy.x + enemy.width &&
+          player.x + player.width > enemy.x &&
+          player.y < enemy.y + enemy.height &&
+          player.y + player.height > enemy.y
+        ) {
+          gameOver = true;
+          messageText = "You hit an enemy! Restarting...";
+          messageTimer = 180;
+          setTimeout(() => location.reload(), 3000);
         }
+      }
 
-        // Check if position is a wall
-        function isWall(x, y) {
-            const cellX = Math.floor(x / CELL_SIZE);
-            const cellY = Math.floor(y / CELL_SIZE);
-            
-            if (cellX < 0 || cellX >= MAZE_SIZE || cellY < 0 || cellY >= MAZE_SIZE) {
-                return true; // Out of bounds counts as wall
-            }
-            
-            return map[cellY][cellX] === 1;
+      // Check finish line collision
+      if (
+        player.x < finishLine.x + finishLine.width &&
+        player.x + player.width > finishLine.x &&
+        player.y < finishLine.y + finishLine.height &&
+        player.y + player.height > finishLine.y
+      ) {
+        gameOver = true;
+        messageText = "Tara is the best!";
+        messageTimer = 600;
+        setTimeout(() => location.reload(), 10000);
+      }
+    }
+
+    function updateEnemies() {
+      for (const enemy of enemies) {
+        enemy.x += enemy.dx;
+        
+        enemy.moveCounter++;
+        if (enemy.moveCounter >= enemy.moveLimit) {
+          enemy.dx *= -1;         // flip direction
+          enemy.moveCounter = 0;  // reset counter
         }
-
-        // Shooting function
-        function shoot() {
-            // Unlimited ammo - no ammo check
-            
-            // Add bullet
-            bullets.push({
-                x: player.x,
-                y: player.y,
-                dx: Math.cos(player.angle) * 10,
-                dy: Math.sin(player.angle) * 10,
-                lifetime: 100
-            });
-            
-            // Simple shooting effect
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.fillRect(canvas.width/2 - 2, canvas.height/2 - 20, 4, 40);
-            setTimeout(() => {
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-                ctx.fillRect(canvas.width/2 - 1, canvas.height/2 - 10, 2, 20);
-            }, 50);
+        
+        // Keep enemy inside ground platform bounds
+        if (enemy.x < 0) {
+          enemy.x = 0;
+          enemy.dx *= -1;
+          enemy.moveCounter = 0;
+        } else if (enemy.x + enemy.width > platforms[0].width) {
+          enemy.x = platforms[0].width - enemy.width;
+          enemy.dx *= -1;
+          enemy.moveCounter = 0;
         }
+      }
+    }
 
-        // Render the game
-        function render() {
-            // Clear screen
-            ctx.fillStyle = '#112';
-            ctx.fillRect(0, 0, canvas.width, canvas.height/2);
-            
-            // Draw floor (darker gradient)
-            const floorGradient = ctx.createLinearGradient(0, canvas.height/2, 0, canvas.height);
-            floorGradient.addColorStop(0, '#222');
-            floorGradient.addColorStop(1, '#111');
-            ctx.fillStyle = floorGradient;
-            ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2);
-            
-            // Only render if game started
-            if (!gameStarted) return;
-            
-            // Raycasting
-            for (let col = 0; col < NUM_RAYS; col++) {
-                // Calculate ray angle
-                const rayAngle = player.angle - HALF_FOV + (col / NUM_RAYS) * FOV;
-                
-                // Cast ray
-                let rayX = player.x;
-                let rayY = player.y;
-                let rayCos = Math.cos(rayAngle);
-                let raySin = Math.sin(rayAngle);
-                
-                let wall = 0;
-                let distance = 0;
-                let wallX, wallY;
-                let verticalHit = false;
-                let exitHit = false;
-                
-                // DDA (Digital Differential Analysis) algorithm
-                let mapX = Math.floor(rayX / CELL_SIZE);
-                let mapY = Math.floor(rayY / CELL_SIZE);
-                
-                let deltaDistX = Math.abs(1 / rayCos);
-                let deltaDistY = Math.abs(1 / raySin);
-                
-                let stepX, stepY;
-                let sideDistX, sideDistY;
-                
-                if (rayCos < 0) {
-                    stepX = -1;
-                    sideDistX = (rayX / CELL_SIZE - mapX) * deltaDistX;
-                } else {
-                    stepX = 1;
-                    sideDistX = (mapX + 1.0 - rayX / CELL_SIZE) * deltaDistX;
-                }
-                
-                if (raySin < 0) {
-                    stepY = -1;
-                    sideDistY = (rayY / CELL_SIZE - mapY) * deltaDistY;
-                } else {
-                    stepY = 1;
-                    sideDistY = (mapY + 1.0 - rayY / CELL_SIZE) * deltaDistY;
-                }
-                
-                // Perform DDA
-                while (wall === 0 && distance < MAX_DEPTH * CELL_SIZE) {
-                    if (sideDistX < sideDistY) {
-                        sideDistX += deltaDistX;
-                        mapX += stepX;
-                        verticalHit = false;
-                    } else {
-                        sideDistY += deltaDistY;
-                        mapY += stepY;
-                        verticalHit = true;
-                    }
-                    
-                    // Check if ray hit a wall or exit
-                    if (mapX >= 0 && mapX < MAZE_SIZE && mapY >= 0 && mapY < MAZE_SIZE) {
-                        wall = map[mapY][mapX];
-                        if (wall === 2) exitHit = true;
-                    } else {
-                        wall = 1;
-                    }
-                    
-                    distance += 1;
-                }
-                
-                // Calculate distance (correct for fish-eye effect)
-                let perpWallDist;
-                if (!verticalHit) {
-                    perpWallDist = (mapX - rayX / CELL_SIZE + (1 - stepX) / 2) / rayCos;
-                } else {
-                    perpWallDist = (mapY - rayY / CELL_SIZE + (1 - stepY) / 2) / raySin;
-                }
-                
-                // Calculate wall height
-                const lineHeight = Math.floor(canvas.height / perpWallDist);
-                
-                // Calculate texture coordinates
-                let wallXHit;
-                if (!verticalHit) {
-                    wallXHit = rayY / CELL_SIZE + perpWallDist * raySin;
-                } else {
-                    wallXHit = rayX / CELL_SIZE + perpWallDist * rayCos;
-                }
-                wallXHit -= Math.floor(wallXHit);
-                
-                let texX = Math.floor(wallXHit * textureSize);
-                if ((!verticalHit && rayCos > 0) || (verticalHit && raySin < 0)) {
-                    texX = textureSize - texX - 1;
-                }
-                
-                // Draw wall slice
-                const drawStart = Math.max(0, Math.floor(-lineHeight / 2 + canvas.height / 2));
-                const drawEnd = Math.min(canvas.height, Math.floor(lineHeight / 2 + canvas.height / 2));
-                const columnWidth = (canvas.width / NUM_RAYS) + 1;
-                const columnX = col * (canvas.width / NUM_RAYS);
-                
-                // Draw textured wall column
-                if (exitHit) {
-                    // Draw exit door (green)
-                    for (let y = drawStart; y < drawEnd; y++) {
-                        const shade = 1.0 - Math.min(1.0, perpWallDist / (CELL_SIZE * 8));
-                        const r = Math.floor(0 * shade);
-                        const g = Math.floor(200 * shade);
-                        const b = Math.floor(0 * shade);
-                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                        ctx.fillRect(columnX, y, columnWidth, 1);
-                    }
-                } else if (wall === 1) {
-                    // Draw brick wall
-                    for (let y = drawStart; y < drawEnd; y++) {
-                        const texY = Math.floor((y - canvas.height / 2 + lineHeight / 2) * textureSize / lineHeight);
-                        const pixel = getTexturePixel(texX, texY, textureData);
-                        
-                        // Apply distance shading
-                        const shade = 1.0 - Math.min(1.0, perpWallDist / (CELL_SIZE * 8));
-                        const r = Math.floor(pixel.r * shade);
-                        const g = Math.floor(pixel.g * shade);
-                        const b = Math.floor(pixel.b * shade);
-                        
-                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                        ctx.fillRect(columnX, y, columnWidth, 1);
-                    }
-                }
-            }
-            
-            // Draw enemies
-            for (const enemy of enemies) {
-                const relX = enemy.x - player.x;
-                const relY = enemy.y - player.y;
-                const enemyDist = Math.sqrt(relX * relX + relY * relY);
-                const angle = Math.atan2(relY, relX) - player.angle;
+    function drawPlatform(plat) {
+      ctx.fillStyle = "#228B22";
+      ctx.fillRect(plat.x - cameraX, plat.y, plat.width, plat.height);
+    }
 
-                let normalizedAngle = angle;
-                while (normalizedAngle > Math.PI) normalizedAngle -= 2 * Math.PI;
-                while (normalizedAngle < -Math.PI) normalizedAngle += 2 * Math.PI;
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                if (Math.abs(normalizedAngle) < HALF_FOV) {
-                    const rayX = player.x;
-                    const rayY = player.y;
-                    const dx = enemy.x - rayX;
-                    const dy = enemy.y - rayY;
-                    const distToEnemy = Math.sqrt(dx * dx + dy * dy);
+      // Draw all platforms
+      for (const plat of platforms) {
+        drawPlatform(plat);
+      }
 
-                    const step = 4;
-                    let visible = true;
-                    for (let d = 0; d < distToEnemy; d += step) {
-                        const testX = rayX + Math.cos(player.angle + normalizedAngle) * d;
-                        const testY = rayY + Math.sin(player.angle + normalizedAngle) * d;
-                        if (isWall(testX, testY)) {
-                            visible = false;
-                            break;
-                        }
-                    }
+      // Draw bones on platforms
+      for (const bone of bones) {
+        if (!bone.collected) drawBone(bone.x - cameraX, bone.y);
+      }
 
-                    if (visible) {
-                        const screenX = (normalizedAngle + HALF_FOV) / FOV * canvas.width;
-                        const size = CELL_SIZE / enemyDist * 300;
+      // Draw enemies
+      for (const enemy of enemies) {
+        drawEnemy(enemy.x - cameraX, enemy.y, enemy.dx < 0);
+      }
 
-                        for (let y = 0; y < size; y++) {
-                            const texY = Math.floor(y / size * textureSize);
-                            for (let x = 0; x < size; x++) {
-                                const texX = Math.floor(x / size * textureSize);
-                                const pixel = getTexturePixel(texX, texY, enemyTexture);
+      // Draw finish line
+      drawFinish(finishLine.x - cameraX, finishLine.y);
 
-                                if (pixel.a > 0) {
-                                    const shade = 1.0 - Math.min(1.0, enemyDist / (CELL_SIZE * 8));
-                                    const r = Math.floor(pixel.r * shade);
-                                    const g = Math.floor(pixel.g * shade);
-                                    const b = Math.floor(pixel.b * shade);
+      // Draw player
+      drawCat(player.x - cameraX, player.y, player.direction === "left");
 
-                                    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                                    ctx.fillRect(
-                                        screenX - size / 2 + x,
-                                        canvas.height / 2 - size / 2 + y,
-                                        1, 1
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Draw bullets
-            for (const bullet of bullets) {
-                // Calculate bullet position relative to player
-                const relX = bullet.x - player.x;
-                const relY = bullet.y - player.y;
-                
-                // Calculate distance and angle to bullet
-                const dist = Math.sqrt(relX * relX + relY * relY);
-                const angle = Math.atan2(relY, relX) - player.angle;
-                
-                // Normalize angle to be between -PI and PI
-                let normalizedAngle = angle;
-                while (normalizedAngle > Math.PI) normalizedAngle -= 2 * Math.PI;
-                while (normalizedAngle < -Math.PI) normalizedAngle += 2 * Math.PI;
-                
-                // Only draw if bullet is in field of view
-                if (Math.abs(normalizedAngle) < HALF_FOV) {
-                    // Calculate screen position
-                    const screenX = (normalizedAngle + HALF_FOV) / FOV * canvas.width;
-                    const size = 10 / dist * 300;
-                    
-                    // Draw bullet sprite
-                    for (let y = 0; y < size; y++) {
-                        const texY = Math.floor(y / size * textureSize);
-                        for (let x = 0; x < size; x++) {
-                            const texX = Math.floor(x / size * textureSize);
-                            const pixel = getTexturePixel(texX, texY, bulletTexture);
-                            
-                            if (pixel.a > 0) { // Only draw non-transparent pixels
-                                const r = Math.floor(pixel.r);
-                                const g = Math.floor(pixel.g);
-                                const b = Math.floor(pixel.b);
-                                
-                                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                                ctx.fillRect(
-                                    screenX - size/2 + x, 
-                                    canvas.height/2 - size/2 + y, 
-                                    1, 1
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Draw weapon
-            ctx.fillStyle = 'rgba(100, 100, 100, 0.7)';
-            ctx.fillRect(canvas.width / 2 - 25, canvas.height - 80, 50, 60);
-            ctx.fillStyle = 'rgba(70, 70, 70, 0.9)';
-            ctx.fillRect(canvas.width / 2 - 20, canvas.height - 60, 40, 40);
-            
-            // Draw crosshair
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.fillRect(canvas.width/2 - 2, canvas.height/2 - 10, 4, 4);
-            ctx.fillRect(canvas.width/2 - 10, canvas.height/2 - 2, 4, 4);
-            ctx.fillRect(canvas.width/2 + 6, canvas.height/2 - 2, 4, 4);
-        }
-    </script>
+      ctx.fillStyle = "#00c9ff";
+      ctx.font = "16px Roboto";
+      ctx.fillText(`Bones: ${collectedBones}`, 20, 30);
+
+      if (messageTimer > 0) {
+        ctx.fillStyle = "yellow";
+        ctx.font = "24px Roboto";
+        ctx.fillText(messageText, canvas.width / 2 - 100, 60);
+        messageTimer--;
+      }
+    }
+
+    function loop() {
+      if (!gameOver) {
+        updatePlayer();
+        updateEnemies();
+        checkCollisions();
+        draw();
+        requestAnimationFrame(loop);
+      } else {
+        draw();
+      }
+    }
+
+    loop();
+  </script>
 </body>
 </html>
