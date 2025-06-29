@@ -1,15 +1,12 @@
-// Get the game canvas and player element
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const player = document.querySelector('.player');
 
-// Set up the game state variables
 let score = 0;
 let enemies = [];
 let playerX = 300;
 let playerY = 200;
 
-// Draw the game background and player
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'black';
