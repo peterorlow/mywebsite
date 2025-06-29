@@ -1,1 +1,36 @@
 
+/* Global styles */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+#game-canvas {
+    border: 1px solid #ccc;
+}
+
+.player {
+    width: 20px;
+    height: 30px;
+    background-color: red;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.enemies {
+    position: relative;
+}
+
+.enemy {
+    width: 40px;
+    height: 60px;
+    background-image: url("assets/enemy.png");
+    background-size: cover;
+    border-radius: 10%;
+}
